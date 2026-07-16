@@ -101,7 +101,7 @@ END
 
     IF NOT EXISTS(SELECT * FROM dbo.WorkflowScheme WHERE Code = N'SimpleWF')
 BEGIN
-EXEC(N'INSERT dbo.WorkflowScheme(Code, Scheme) VALUES (N''SimpleWF'', N''
+EXEC(N'INSERT dbo.WorkflowScheme(Id, Code, Scheme) VALUES (NEWID(), N''SimpleWF'', N''
 <Process Name="SimpleWF" CanBeInlined="false" Tags="" LogEnabled="false">
   <Designer X="-110" Y="-60" />
   <Actors>

@@ -10,6 +10,9 @@
         <el-form-item v-if="Id" :label="labels.ProcessIdLabel">
           <el-input v-model="Id" :readonly="true"></el-input>
         </el-form-item>
+        <el-form-item :label="labels.TenantLabel ?? 'Tenant'">
+          <el-input v-model="Tenant" :readonly="true"></el-input>
+        </el-form-item>
         <el-form-item :label="labels.TagsLabel">
           <el-select v-model="Tags" :disabled="readonly" :placeholder="labels.TagsInputPlaceholder" allow-create filterable multiple
                      style="width: 100%;" :reserve-keyword="false"></el-select>
@@ -375,6 +378,7 @@
       ProcessHistoryCount: undefined,
       ProcessId: undefined,
       Name: '',
+      Tenant: '',
       Id: undefined,
       SubprocessInfo: undefined,
       CalendarName: '',
@@ -402,12 +406,21 @@
 
     methods.UpdateLanguage();
 
+    methods.getTenantDisplayValue = function (tenantId) {
+      if (tenantId !== undefined && tenantId !== null && tenantId !== '') {
+        return tenantId;
+      }
+
+      return data.labels?.SharedTenantValue ?? 'Shared';
+    }
+
     methods.onUpdate = function () {
       data.CalendarName = me.graph.data.CalendarName;
       data.Tags = WorkflowDesignerCommon.clone(graph.data.Tags);
       data.CanBeInlined = graph.data.CanBeInlined;
       data.LogEnabled = isProcess ? designer.LogEnabled : me.graph.data.LogEnabled;
       data.Name = graph.data.Name;
+      data.Tenant = methods.getTenantDisplayValue(graph.data.TenantId);
       if (graph.data.Id && graph.data.Id !== '00000000-0000-0000-0000-000000000000') {
         data.Id = graph.data.Id
       } else {

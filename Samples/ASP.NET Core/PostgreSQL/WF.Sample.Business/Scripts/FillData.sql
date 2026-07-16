@@ -28,7 +28,7 @@ INSERT INTO "EmployeeRole"("EmployeeId", "RoleId") VALUES ('deb579f9-991c-4db9-a
 INSERT INTO "EmployeeRole"("EmployeeId", "RoleId") VALUES ('91f2b471-4a96-4ab7-a41a-ea4293703d16', '71fffb5b-b707-4b3c-951c-c37fdfcc8dfb') ON CONFLICT DO NOTHING;
 
 
-INSERT INTO "WorkflowScheme"("Code", "Scheme") VALUES ('SimpleWF', '
+INSERT INTO "WorkflowScheme"("Id", "Code", "Scheme") VALUES (uuid_generate_v4(), 'SimpleWF', '
 <Process Name="SimpleWF" CanBeInlined="false" Tags="" LogEnabled="false">
   <Designer X="-110" Y="-60" />
   <Actors>

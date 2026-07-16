@@ -51,6 +51,12 @@
     <EmbeddedResource Include="Scripts\CreateWorkflowForms.sql" />
     <None Remove="Scripts\RemoveConstraintsFromDeterminingParametersColumns.sql" />
     <EmbeddedResource Include="Scripts\RemoveConstraintsFromDeterminingParametersColumns.sql" />
+    <None Remove="Scripts\WorkflowTenantIdAndSchemeId.sql" />
+    <EmbeddedResource Include="Scripts\WorkflowTenantIdAndSchemeId.sql" />
+    <None Remove="Scripts\RemoveAssignmentCheckDeadlinesSystemProcess.sql" />
+    <EmbeddedResource Include="Scripts\RemoveAssignmentCheckDeadlinesSystemProcess.sql" />
+    <None Remove="Scripts\DropEmptyWorkflowProcessAssignmentTable.sql" />
+    <EmbeddedResource Include="Scripts\DropEmptyWorkflowProcessAssignmentTable.sql" />
     <None Remove="Scripts\CreateCalendarNameColumn.sql" />
     <EmbeddedResource Include="Scripts\CreateCalendarNameColumn.sql" />
   </ItemGroup>

@@ -42,5 +42,28 @@ namespace OptimaJet.Workflow.MySQL
                 $"IN ({String.Join(",", ids.Select(x => $"UUID_TO_BIN('{BitConverter.ToString(x.ToByteArray()).Replace("-", String.Empty)}')"))})";
             return await SelectAsync(connection, selectText).ConfigureAwait(false);
         }
+
+        public async Task<bool> IsProcessExistsAsync(MySqlConnection connection, Guid processId, string tenantId)
+        {
+            string commandText =
+                $"SELECT COUNT(*) FROM {DbTableName} WHERE `{nameof(ProcessInstanceEntity.Id)}` = @processid";
+            var parameters = new List<MySqlParameter>
+            {
+                new("processid", MySqlDbType.Binary) { Value = ToDbValue(processId, MySqlDbType.Binary) }
+            };
+
+            if (tenantId == null)
+            {
+                commandText += $" AND `{nameof(ProcessInstanceEntity.TenantId)}` IS NULL";
+            }
+            else
+            {
+                commandText += $" AND `{nameof(ProcessInstanceEntity.TenantId)}` = @tenantid";
+                parameters.Add(new MySqlParameter("tenantid", MySqlDbType.VarString) { Value = tenantId });
+            }
+
+            object result = await ExecuteCommandScalarAsync(connection, commandText, parameters.ToArray()).ConfigureAwait(false);
+            return Convert.ToInt32(result) != 0;
+        }
     }
 }

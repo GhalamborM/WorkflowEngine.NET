@@ -14,7 +14,6 @@
     {
         designerUrl = Url.Action("Index", "Designer", new {processid = Model.Id});
     }
-    var createAssignmentUrl = Url.Action("AssignmentCreate", "Assignment",  new {processid = Model.Id});
 }
 
 <form class="ui form" method="post">
@@ -76,10 +75,6 @@
             <div class="field">
                 <a class="ui circular left floated button" target="_blank" style="text-align:right" href="@designerUrl">Open in Workflow Designer</a>
             </div>
-            <div class="field">
-                <a class="ui circular left floated button" target="_blank" style="text-align:right" href="@createAssignmentUrl">Create assignment</a>
-            </div>
-
         }
     </div>
 

@@ -21,6 +21,7 @@ namespace OptimaJet.Workflow.Oracle
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.NextExecutionDateTime), Type = OracleDbType.TimeStamp},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.Ignore), Type = OracleDbType.Byte },
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.RootProcessId), Type = OracleDbType.Raw},
+                new ColumnInfo {Name = nameof(ProcessTimerEntity.TenantId), Type = OracleDbType.NVarchar2, Size = 128},
             });
         }
 

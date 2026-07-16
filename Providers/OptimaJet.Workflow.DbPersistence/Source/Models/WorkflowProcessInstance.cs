@@ -44,6 +44,29 @@ namespace OptimaJet.Workflow.DbPersistence
             return await SelectAsync(connection, selectText).ConfigureAwait(false);
         }
 
+        public async Task<bool> IsProcessExistsAsync(SqlConnection connection, Guid processId, string tenantId)
+        {
+            string commandText =
+                $"SELECT COUNT(*) FROM {ObjectName} WHERE [{nameof(ProcessInstanceEntity.Id)}] = @processid";
+            var parameters = new List<SqlParameter>
+            {
+                new("processid", SqlDbType.UniqueIdentifier) { Value = processId }
+            };
+
+            if (tenantId == null)
+            {
+                commandText += $" AND [{nameof(ProcessInstanceEntity.TenantId)}] IS NULL";
+            }
+            else
+            {
+                commandText += $" AND [{nameof(ProcessInstanceEntity.TenantId)}] = @tenantid";
+                parameters.Add(new SqlParameter("tenantid", SqlDbType.NVarChar) { Value = tenantId });
+            }
+
+            object result = await ExecuteCommandScalarAsync(connection, commandText, parameters.ToArray()).ConfigureAwait(false);
+            return Convert.ToInt32(result) != 0;
+        }
+
         public static DataTable ToDataTable()
         {
             var dt = new DataTable();

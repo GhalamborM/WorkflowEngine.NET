@@ -10,6 +10,7 @@
             </el-icon>
             <label class="Label">
               {{ schemeCode ?? labels.UntitledScheme }}
+              <span v-if="tenantTitle" class="WorkflowDesignerToolbarSchemeTenant">{{ tenantTitle }}</span>
             </label>
           </div>
         </div>
@@ -156,14 +157,6 @@
     </el-button>
   </el-tooltip>
 
-  <el-tooltip v-if="settings?.readonly && hasAssignments" :content="labels.Assignments">
-    <el-button :class="getButtonClass(assignments)" @click="showAssignments()">
-      <el-icon>
-        <div class="WorkflowDesignerToolbarIcon" v-html="icons.assignments"></div>
-      </el-icon>
-    </el-button>
-  </el-tooltip>
-
   <el-tooltip :content="labels.ProcessInfo">
     <el-button :class="getButtonClass(processinfo)" @click="showProcessInfo()">
       <el-icon>
@@ -289,7 +282,6 @@ function toolbar_Data(me) {
       showSaveButton: false,
       disableCodeActions: false
     },
-    hasAssignments: false,
     canBeInlined: false,
     // LogEnabled: true,
     LogEnabled: false,
@@ -308,6 +300,7 @@ function toolbar_Data(me) {
     showAboutDialog: false,
 
     schemeCode: null, // string
+    tenantTitle: null,
     undoDisabled: false,
     redoDisabled: false,
     selected: false,        // If element is selected
@@ -318,7 +311,6 @@ function toolbar_Data(me) {
     codeactions: false,
     parameters: false,
     localization: false,
-    assignments: false,
     processinfo: false
   }
 }
@@ -349,8 +341,17 @@ function toolbar_Init(me) {
 
   const updateSchemeName = () => {
     data.schemeCode = designer.schemecode;
+    data.tenantTitle = methods.getTenantTitle(me.graph.data?.TenantId);
     data.FormData.SchemeName = data.schemeCode;
   }
+
+  methods.getTenantTitle = function (tenantId) {
+    if (tenantId !== undefined && tenantId !== null && tenantId !== '') {
+      return tenantId;
+    }
+
+    return null;
+  };
 
   methods.onUpdateLogsStatus = function () {
     data.LogEnabled = isProcess ? designer.LogEnabled : me.graph.data.LogEnabled;
@@ -373,13 +374,6 @@ function toolbar_Init(me) {
     var plugins = me.graph.getPluginsNames();
     data.uploadBpmnEnabled = plugins?.includes('BpmnPlugin');
 
-    for (var i = 0; i < plugins?.length; i++) {
-      if (plugins[i] === 'AssignmentPlugin') {
-        data.hasAssignments = true;
-        break;
-      }
-    }
-
     var windowsNames = [
       {name: 'logs', show: methods.showLogs, editmode: true},
       {name: 'legend', show: methods.showLegend, editmode: true},
@@ -392,10 +386,6 @@ function toolbar_Init(me) {
       {name: 'codeactions', show: methods.showCodeActions, editmode: false},
       {name: 'localization', show: methods.showLocalization, editmode: false},
       {name: 'processinfo', show: methods.showProcessInfo, editmode: false}];
-
-    if (data.hasAssignments) {
-      windowsNames.push({name: 'assignments', show: methods.showAssignments, editmode: false});
-    }
 
     var restoreWindowState = function (obj) {
       if (obj.editmode && data?.settings?.readonly)
@@ -553,10 +543,6 @@ function toolbar_Init(me) {
   methods.showParameters = function () {
     methods.showPropertyWindow('parameters', 'WorkflowDesignerParameters');
   };
-  methods.showAssignments = function () {
-    methods.showPropertyWindow('assignments', 'WorkflowDesignerParameters');
-  };
-
   methods.showLocalization = function () {
     methods.showPropertyWindow('localization', 'WorkflowDesignerLocalization');
   };

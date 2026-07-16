@@ -20,7 +20,8 @@ namespace OptimaJet.Workflow.PostgreSQL
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Id), IsKey = true, Type = NpgsqlDbType.Uuid},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ProcessId), Type = NpgsqlDbType.Uuid},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ParameterName)},
-                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = NpgsqlDbType.Text}
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = NpgsqlDbType.Text},
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.TenantId), Type = NpgsqlDbType.Varchar}
             });
         }
 
@@ -98,7 +99,7 @@ namespace OptimaJet.Workflow.PostgreSQL
                 {
                     await InsertAsync(connection, entity, transaction).ConfigureAwait(false);
                 }
-                catch (PostgresException pgEx) when (pgEx.SqlState == "23505")
+                catch (PostgresException pgEx) when (pgEx.IsDuplicateKeyException())
                 {
                     // Rollback to savepoint to continue transaction after the error
                     await transaction.RollbackAsync("insert_param").ConfigureAwait(false);

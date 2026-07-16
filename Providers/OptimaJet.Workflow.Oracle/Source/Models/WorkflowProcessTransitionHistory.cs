@@ -23,6 +23,7 @@ namespace OptimaJet.Workflow.Oracle
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.FromStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.IsFinalised), Type = OracleDbType.Byte},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ProcessId), Type = OracleDbType.Raw},
+                new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToActivityName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TransitionClassifier)},

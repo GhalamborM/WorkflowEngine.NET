@@ -21,7 +21,8 @@ namespace OptimaJet.Workflow.DbPersistence
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Lock), Type = SqlDbType.UniqueIdentifier},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Status), Type = SqlDbType.TinyInt},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.RuntimeId), Type = SqlDbType.NVarChar},
-                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = SqlDbType.DateTime}
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = SqlDbType.DateTime},
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.TenantId), Type = SqlDbType.NVarChar, Size = 128}
             });
         }
         
@@ -68,6 +69,7 @@ namespace OptimaJet.Workflow.DbPersistence
             dt.Columns.Add(nameof(ProcessInstanceStatusEntity.Status), typeof(byte));
             dt.Columns.Add(nameof(ProcessInstanceStatusEntity.RuntimeId), typeof(string));
             dt.Columns.Add(nameof(ProcessInstanceStatusEntity.SetTime), typeof(DateTime));
+            dt.Columns.Add(nameof(ProcessInstanceStatusEntity.TenantId), typeof(string));
             return dt;
         }
     }

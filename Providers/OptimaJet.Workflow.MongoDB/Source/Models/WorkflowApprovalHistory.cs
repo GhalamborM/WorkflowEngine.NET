@@ -9,6 +9,7 @@ namespace OptimaJet.Workflow.MongoDB
     {
         public Guid Id { get; set; }
         public Guid ProcessId { get; set; }
+        public string TenantId { get; set; }
         public string IdentityId { get; set; }
         public string AllowedTo { get; set; }
         public DateTime? TransitionTime { get; set; }
@@ -25,6 +26,7 @@ namespace OptimaJet.Workflow.MongoDB
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.Join(",", historyItem.AllowedTo),
                 TransitionTime = historyItem.TransitionTime,
@@ -41,6 +43,7 @@ namespace OptimaJet.Workflow.MongoDB
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.SplitWithTrim(historyItem.AllowedTo, ","),
                 TransitionTime = runtime.ToRuntimeTime(historyItem.TransitionTime),

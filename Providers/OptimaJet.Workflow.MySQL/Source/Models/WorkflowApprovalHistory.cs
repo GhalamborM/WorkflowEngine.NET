@@ -18,6 +18,7 @@ namespace OptimaJet.Workflow.MySQL
             {
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.Id), IsKey = true, Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.ProcessId), Type = MySqlDbType.Binary},
+                new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.AllowedTo)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TransitionTime), Type = MySqlDbType.DateTime},
@@ -35,6 +36,7 @@ namespace OptimaJet.Workflow.MySQL
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.Join(",", historyItem.AllowedTo),
                 TransitionTime = historyItem.TransitionTime,
@@ -52,6 +54,7 @@ namespace OptimaJet.Workflow.MySQL
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.SplitWithTrim(historyItem.AllowedTo, ","),
                 TransitionTime = historyItem.TransitionTime,

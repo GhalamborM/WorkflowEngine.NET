@@ -337,8 +337,8 @@ schemeValue := '
   </Localization>
 </Process>
 ';
-INSERT INTO WorkflowScheme(Code, Scheme)
-SELECT 'SimpleWF', schemeValue
+INSERT INTO WorkflowScheme(Id, Code, Scheme)
+SELECT SYS_GUID(), 'SimpleWF', schemeValue
 FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1 FROM WorkflowScheme WHERE Code = 'SimpleWF'

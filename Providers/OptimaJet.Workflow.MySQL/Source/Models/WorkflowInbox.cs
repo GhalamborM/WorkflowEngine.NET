@@ -21,6 +21,7 @@ namespace OptimaJet.Workflow.MySQL
             {
                 new ColumnInfo {Name = nameof(InboxEntity.Id), IsKey = true, Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(InboxEntity.ProcessId), Type = MySqlDbType.Binary},
+                new ColumnInfo {Name = nameof(InboxEntity.TenantId), Type = MySqlDbType.String},
                 new ColumnInfo {Name = nameof(InboxEntity.IdentityId), Type = MySqlDbType.String},
                 new ColumnInfo {Name = nameof(InboxEntity.AddingDate), Type = MySqlDbType.DateTime},
                 new ColumnInfo {Name = nameof(InboxEntity.AvailableCommands), Type = MySqlDbType.String}
@@ -33,6 +34,7 @@ namespace OptimaJet.Workflow.MySQL
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands?.Select(x => x.Name))
@@ -50,7 +52,7 @@ namespace OptimaJet.Workflow.MySQL
                 {
                     processInstance = await runtime.Builder.GetProcessInstanceAsync(group.Key).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     processInstance = null;
                 }
@@ -62,6 +64,7 @@ namespace OptimaJet.Workflow.MySQL
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = inboxItem.AddingDate,
                         AvailableCommands = availableCommands.Select(x =>

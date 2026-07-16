@@ -17,7 +17,8 @@ namespace OptimaJet.Workflow.MySQL
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Id), IsKey = true, Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ProcessId), Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ParameterName)},
-                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = MySqlDbType.LongText}
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = MySqlDbType.LongText},
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.TenantId), Type = MySqlDbType.VarChar, Size = 128}
             });
         }
 
@@ -96,7 +97,7 @@ namespace OptimaJet.Workflow.MySQL
                 {
                     await InsertAsync(connection, entity, transaction).ConfigureAwait(false);
                 }
-                catch (MySqlException mysqlEx) when (mysqlEx.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
+                catch (MySqlException mysqlEx) when (mysqlEx.IsDuplicateKeyException())
                 {
                     // Fallback: if INSERT failed due to the duplicate key, do UPDATE
                     await UpdateByNameAsync(connection, entity, transaction).ConfigureAwait(false);

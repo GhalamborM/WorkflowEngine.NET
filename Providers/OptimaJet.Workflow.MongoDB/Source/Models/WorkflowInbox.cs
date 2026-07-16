@@ -14,6 +14,7 @@ namespace OptimaJet.Workflow.MongoDB
     {
         public Guid Id { get; set; }
         public Guid ProcessId { get; set; }
+        public string TenantId { get; set; }
         public string IdentityId { get; set; }
         public DateTime AddingDate { get; set; }
         public string AvailableCommands { get; set; }
@@ -24,6 +25,7 @@ namespace OptimaJet.Workflow.MongoDB
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands.Select(x=>x.Name)) 
@@ -40,7 +42,7 @@ namespace OptimaJet.Workflow.MongoDB
                 {
                     processInstance = await runtime.Builder.GetProcessInstanceAsync(group.Key).ConfigureAwait(false);
                 }
-                catch(Exception ex)
+                catch(Exception)
                 {
                     processInstance = null;
                 }
@@ -52,6 +54,7 @@ namespace OptimaJet.Workflow.MongoDB
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = runtime.ToRuntimeTime(inboxItem.AddingDate),
                         AvailableCommands = availableCommands.Select(x=>

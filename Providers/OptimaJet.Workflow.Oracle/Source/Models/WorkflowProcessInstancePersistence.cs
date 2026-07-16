@@ -19,7 +19,8 @@ namespace OptimaJet.Workflow.Oracle
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Id), IsKey = true, Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ProcessId), Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ParameterName)},
-                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = OracleDbType.NClob}
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = OracleDbType.NClob},
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.TenantId), Type = OracleDbType.NVarchar2, Size = 128}
             });
         }
 
@@ -107,7 +108,7 @@ namespace OptimaJet.Workflow.Oracle
                 {
                     await InsertAsync(connection, entity, transaction).ConfigureAwait(false);
                 }
-                catch (OracleException oraEx) when (oraEx.Number == 1) // ORA-00001: unique constraint violated
+                catch (OracleException oraEx) when (oraEx.IsDuplicateKeyException())
                 {
                     // Fallback: if INSERT failed due to the duplicate key (already exists), do UPDATE
                     await UpdateByNameAsync(connection, entity, transaction).ConfigureAwait(false);

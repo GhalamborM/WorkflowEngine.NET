@@ -24,6 +24,7 @@ namespace OptimaJet.Workflow.PostgreSQL
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.FromStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.IsFinalised), Type = NpgsqlDbType.Boolean},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ProcessId), Type = NpgsqlDbType.Uuid},
+                new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToActivityName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TransitionClassifier)},

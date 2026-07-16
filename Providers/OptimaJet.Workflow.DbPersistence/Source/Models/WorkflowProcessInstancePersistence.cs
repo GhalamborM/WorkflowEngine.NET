@@ -21,7 +21,8 @@ namespace OptimaJet.Workflow.DbPersistence
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Id), IsKey = true, Type = SqlDbType.UniqueIdentifier},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ProcessId), Type = SqlDbType.UniqueIdentifier},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ParameterName)},
-                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = SqlDbType.NVarChar, Size = -1}
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value), Type = SqlDbType.NVarChar, Size = -1},
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.TenantId), Type = SqlDbType.NVarChar, Size = 128}
             });
         }
 
@@ -97,7 +98,7 @@ namespace OptimaJet.Workflow.DbPersistence
                 {
                     await InsertAsync(connection, entity, transaction).ConfigureAwait(false);
                 }
-                catch (PersistenceProviderQueryException ex) when (ex.InnerException is SqlException { Number: 2627 or 2601 })
+                catch (PersistenceProviderQueryException ex) when (ex.IsDuplicateKeyException())
                 {
                     // Fallback: if INSERT failed due to the duplicate key (already exists), do UPDATE
                     await UpdateByNameAsync(connection, entity, transaction).ConfigureAwait(false);
@@ -112,6 +113,7 @@ namespace OptimaJet.Workflow.DbPersistence
             dt.Columns.Add(nameof(ProcessInstancePersistenceEntity.ProcessId), typeof(Guid));
             dt.Columns.Add(nameof(ProcessInstancePersistenceEntity.ParameterName), typeof(string));
             dt.Columns.Add(nameof(ProcessInstancePersistenceEntity.Value), typeof(string));
+            dt.Columns.Add(nameof(ProcessInstancePersistenceEntity.TenantId), typeof(string));
             return dt;
         }
         

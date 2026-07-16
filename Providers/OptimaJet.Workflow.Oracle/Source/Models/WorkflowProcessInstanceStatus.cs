@@ -20,7 +20,8 @@ namespace OptimaJet.Workflow.Oracle
                 new ColumnInfo {Name = "LOCKFLAG", Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Status), Type = OracleDbType.Int16},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.RuntimeId), Type = OracleDbType.NVarchar2},
-                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = OracleDbType.Date}
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = OracleDbType.Date},
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.TenantId), Type = OracleDbType.NVarchar2, Size = 128}
             });
         }
 

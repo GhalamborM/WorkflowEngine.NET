@@ -58,7 +58,7 @@ namespace OptimaJet.Workflow.PostgreSQL
             return await ExecuteCommandNonQueryAsync(connection, commandText, transaction, parameters).ConfigureAwait(false);
         }
         
-        public async Task<int> UpsertAsync(NpgsqlConnection connection, TEntity entity, NpgsqlTransaction transaction = null)
+        public virtual async Task<int> UpsertAsync(NpgsqlConnection connection, TEntity entity, NpgsqlTransaction transaction = null)
         {
             var commandText =
                 $"INSERT INTO {ObjectName} ({String.Join(",", DBColumns.Where(c => !c.IsVirtual).Select(c => $"\"{c.Name}\""))}) " +

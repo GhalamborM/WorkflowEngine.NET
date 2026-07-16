@@ -23,6 +23,7 @@ namespace OptimaJet.Workflow.DbPersistence
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.NextExecutionDateTime), Type = SqlDbType.DateTime},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.Ignore), Type = SqlDbType.Bit},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.RootProcessId), Type = SqlDbType.UniqueIdentifier},
+                new ColumnInfo {Name = nameof(ProcessTimerEntity.TenantId), Type = SqlDbType.NVarChar, Size = 128},
             });
         }
 
@@ -153,6 +154,7 @@ namespace OptimaJet.Workflow.DbPersistence
             dt.Columns.Add(nameof(ProcessTimerEntity.Name), typeof(string));
             dt.Columns.Add(nameof(ProcessTimerEntity.NextExecutionDateTime), typeof(DateTime));
             dt.Columns.Add(nameof(ProcessTimerEntity.Ignore), typeof(bool));
+            dt.Columns.Add(nameof(ProcessTimerEntity.TenantId), typeof(string));
             return dt;
         }
     }

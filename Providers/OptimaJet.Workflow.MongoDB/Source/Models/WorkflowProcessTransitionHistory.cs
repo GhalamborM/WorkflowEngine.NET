@@ -14,6 +14,7 @@ namespace OptimaJet.Workflow.MongoDB
         public Guid Id { get; set; }
         public bool IsFinalised { get; set; }
         public Guid ProcessId { get; set; }
+        public string TenantId { get; set; }
         public string ToActivityName { get; set; }
         public string ToStateName { get; set; }
         public string TransitionClassifier { get; set; }

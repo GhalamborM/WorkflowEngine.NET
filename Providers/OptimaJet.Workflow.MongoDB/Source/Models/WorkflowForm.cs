@@ -11,6 +11,7 @@ public class WorkflowForm : DynamicEntity
     public DateTime UpdatedDate { get; set; }
     public string Definition { get; set; }
     public int Lock { get; set; }
+    public string? TenantId { get; set; }
 
     public OptimaJet.Workflow.Core.Persistence.WorkflowForm ToModel()
     {
@@ -21,6 +22,7 @@ public class WorkflowForm : DynamicEntity
             Definition = Definition,
             Lock = Lock,
             Name = Name,
+            TenantId = TenantId,
             UpdatedDate = UpdatedDate,
             Version = Version
         };

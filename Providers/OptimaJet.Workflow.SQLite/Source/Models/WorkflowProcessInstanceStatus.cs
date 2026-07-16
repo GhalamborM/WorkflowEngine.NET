@@ -16,7 +16,8 @@ namespace OptimaJet.Workflow.SQLite
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Lock), Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Status), Type = DbType.Byte},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.RuntimeId)},
-                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = DbType.DateTime2}
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = DbType.DateTime2},
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.TenantId)}
             });
         }
 

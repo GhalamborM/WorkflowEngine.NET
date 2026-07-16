@@ -19,6 +19,7 @@ namespace OptimaJet.Workflow.DbPersistence
             {
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.Id), IsKey = true, Type = SqlDbType.UniqueIdentifier},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.ProcessId), Type = SqlDbType.UniqueIdentifier},
+                new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.AllowedTo)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TransitionTime), Type = SqlDbType.DateTime},
@@ -36,6 +37,7 @@ namespace OptimaJet.Workflow.DbPersistence
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.Join(",", historyItem.AllowedTo),
                 TransitionTime = historyItem.TransitionTime,
@@ -53,6 +55,7 @@ namespace OptimaJet.Workflow.DbPersistence
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.SplitWithTrim(historyItem.AllowedTo, ","),
                 TransitionTime = historyItem.TransitionTime,

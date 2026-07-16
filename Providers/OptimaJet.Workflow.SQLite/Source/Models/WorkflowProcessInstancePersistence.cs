@@ -16,7 +16,8 @@ namespace OptimaJet.Workflow.SQLite
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Id), IsKey = true, Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ProcessId), Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.ParameterName)},
-                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value)}
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.Value)},
+                new ColumnInfo {Name = nameof(ProcessInstancePersistenceEntity.TenantId)}
             });
         }
 
@@ -92,7 +93,7 @@ namespace OptimaJet.Workflow.SQLite
                 {
                     await InsertAsync(connection, entity, transaction).ConfigureAwait(false);
                 }
-                catch (PersistenceProviderQueryException ex) when (ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+                catch (PersistenceProviderQueryException ex) when (ex.IsDuplicateKeyException())
                 {
                     // Fallback: if INSERT failed due to the duplicate key (already exists), do UPDATE
                     await UpdateByNameAsync(connection, entity, transaction).ConfigureAwait(false);

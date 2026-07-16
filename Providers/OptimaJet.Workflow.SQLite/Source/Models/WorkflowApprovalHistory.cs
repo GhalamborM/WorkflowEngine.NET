@@ -15,6 +15,7 @@ namespace OptimaJet.Workflow.SQLite
             {
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.Id), IsKey = true, Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.ProcessId), Type = DbType.Guid},
+                new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.AllowedTo)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TransitionTime), Type = DbType.DateTime2},
@@ -32,6 +33,7 @@ namespace OptimaJet.Workflow.SQLite
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.Join(",", historyItem.AllowedTo),
                 TransitionTime = historyItem.TransitionTime,
@@ -49,6 +51,7 @@ namespace OptimaJet.Workflow.SQLite
             {
                 Id = historyEntity.Id,
                 ProcessId = historyEntity.ProcessId,
+                TenantId = historyEntity.TenantId,
                 IdentityId = historyEntity.IdentityId,
                 AllowedTo = HelperParser.SplitWithTrim(historyEntity.AllowedTo, ","),
                 TransitionTime = historyEntity.TransitionTime,

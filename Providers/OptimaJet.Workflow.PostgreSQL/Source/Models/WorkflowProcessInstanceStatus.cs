@@ -20,7 +20,8 @@ namespace OptimaJet.Workflow.PostgreSQL
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Lock), Type = NpgsqlDbType.Uuid},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Status), Type = NpgsqlDbType.Smallint},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.RuntimeId)},
-                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = NpgsqlDbType.Timestamp}
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = NpgsqlDbType.Timestamp},
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.TenantId)}
             });
         }
 

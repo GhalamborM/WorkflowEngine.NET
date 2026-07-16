@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using OptimaJet.Workflow.Core.Entities;
 
@@ -18,14 +19,20 @@ namespace OptimaJet.Workflow.SQLite
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeId), Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeCode)},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.AllowedActivities)},
-                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)}
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)},
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.TenantId), Size = 128}
             });
         }
 
-        public async Task<ProcessSchemeEntity[]> SelectAsync(SqliteConnection connection, string schemeCode, bool? isObsolete, Guid? rootSchemeId)
+        public async Task<ProcessSchemeEntity[]> SelectAsync(SqliteConnection connection, string schemeCode, string tenantId,
+            bool? isObsolete, Guid? rootSchemeId)
         {
             string selectText = $"SELECT * FROM {ObjectName} " + 
                                 $"WHERE {nameof(ProcessSchemeEntity.SchemeCode)} = @schemecode ";
+            var parameters = new List<SqliteParameter>
+            {
+                new("schemecode", DbType.String) {Value = schemeCode}
+            };
 
             if (isObsolete.HasValue)
             {
@@ -39,29 +46,49 @@ namespace OptimaJet.Workflow.SQLite
                 }
             }
 
-            var pSchemecode = new SqliteParameter("schemecode", DbType.String) {Value = schemeCode};
-
             if (rootSchemeId.HasValue)
             {
                 selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} = @rootschemeid";
-                var pRootSchemeId = new SqliteParameter("rootschemeid", DbType.String) {Value = ToDbValue(rootSchemeId.Value, DbType.Guid)};
-
-                return await SelectAsync(connection, selectText, pSchemecode, pRootSchemeId).ConfigureAwait(false);
+                parameters.Add(new SqliteParameter("rootschemeid", DbType.String)
+                    {Value = ToDbValue(rootSchemeId.Value, DbType.Guid)});
+            }
+            else
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} IS NULL";
             }
 
-            selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} IS NULL";
-            return await SelectAsync(connection, selectText, pSchemecode).ConfigureAwait(false);
+            if (tenantId == null)
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.TenantId)} IS NULL";
+            }
+            else
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.TenantId)} = @tenantid";
+                parameters.Add(new SqliteParameter("tenantid", DbType.String) {Value = tenantId});
+            }
+
+            return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        public async Task<int> SetObsoleteAsync(SqliteConnection connection, string schemeCode)
+        public async Task<int> SetObsoleteAsync(SqliteConnection connection, string schemeCode, string tenantId)
         {
             string command = $"UPDATE {ObjectName} SET " + 
-                             $"{nameof(ProcessSchemeEntity.IsObsolete)} = TRUE WHERE " + 
+                             $"{nameof(ProcessSchemeEntity.IsObsolete)} = TRUE WHERE (" + 
                              $"{nameof(ProcessSchemeEntity.SchemeCode)} = @schemecode " + 
-                             $"OR {nameof(ProcessSchemeEntity.RootSchemeCode)} = @schemecode";
-            var p = new SqliteParameter("schemecode", DbType.String) {Value = schemeCode};
+                             $"OR {nameof(ProcessSchemeEntity.RootSchemeCode)} = @schemecode)";
 
-            return await ExecuteCommandNonQueryAsync(connection, command, p).ConfigureAwait(false);
+            var parameters = new List<SqliteParameter>
+            {
+                new("schemecode", DbType.String) {Value = schemeCode}
+            };
+
+            if (tenantId != null)
+            {
+                command += $" AND {nameof(ProcessSchemeEntity.TenantId)} = @tenantid";
+                parameters.Add(new SqliteParameter("tenantid", DbType.String) {Value = tenantId});
+            }
+
+            return await ExecuteCommandNonQueryAsync(connection, command, parameters.ToArray()).ConfigureAwait(false);
         }
 
         public async Task DeleteUnusedAsync(SqliteConnection connection)

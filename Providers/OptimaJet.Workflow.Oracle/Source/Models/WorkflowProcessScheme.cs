@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
 using OptimaJet.Workflow.Core.Entities;
@@ -21,15 +22,21 @@ namespace OptimaJet.Workflow.Oracle
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeId), Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeCode)},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.AllowedActivities)},
-                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)}
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)},
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.TenantId), Size = 128}
             });
         }
 
-        public async Task<ProcessSchemeEntity[]> SelectAsync(OracleConnection connection, string schemeCode,bool? isObsolete, Guid? rootSchemeId)
+        public async Task<ProcessSchemeEntity[]> SelectAsync(OracleConnection connection, string schemeCode, string tenantId,
+            bool? isObsolete, Guid? rootSchemeId)
         {
             string selectText =
                 $"SELECT * FROM {ObjectName} " +
                 $"WHERE {nameof(ProcessSchemeEntity.SchemeCode)} = :schemecode";
+            var parameters = new List<OracleParameter>
+            {
+                new("schemecode", OracleDbType.NVarchar2, schemeCode, ParameterDirection.Input)
+            };
 
             if (isObsolete.HasValue)
             {
@@ -46,27 +53,46 @@ namespace OptimaJet.Workflow.Oracle
             if (rootSchemeId.HasValue)
             {
                 selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} = :rootschemeid";
-                return await SelectAsync(connection, selectText,
-                        new OracleParameter("schemecode", OracleDbType.NVarchar2, schemeCode, ParameterDirection.Input),
-                        new OracleParameter("rootschemeid", OracleDbType.Raw, rootSchemeId.Value.ToByteArray(), ParameterDirection.Input))
-                    .ConfigureAwait(false);
+                parameters.Add(new OracleParameter("rootschemeid", OracleDbType.Raw, rootSchemeId.Value.ToByteArray(),
+                    ParameterDirection.Input));
+            }
+            else
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} IS NULL";
             }
 
-            selectText += $" AND {nameof(ProcessSchemeEntity.RootSchemeId)} IS NULL";
-            return await SelectAsync(connection, selectText,
-                    new OracleParameter("schemecode", OracleDbType.NVarchar2, schemeCode, ParameterDirection.Input))
-                .ConfigureAwait(false);
+            if (tenantId == null)
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.TenantId)} IS NULL";
+            }
+            else
+            {
+                selectText += $" AND {nameof(ProcessSchemeEntity.TenantId)} = :tenantid";
+                parameters.Add(new OracleParameter("tenantid", OracleDbType.NVarchar2, tenantId, ParameterDirection.Input));
+            }
+
+            return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        public async Task<int> SetObsoleteAsync(OracleConnection connection, string schemeCode)
+        public async Task<int> SetObsoleteAsync(OracleConnection connection, string schemeCode, string tenantId)
         {
             string command = $"UPDATE {ObjectName} SET " +
                              $"{nameof(ProcessSchemeEntity.IsObsolete)} = 1 " +
-                             $"WHERE {nameof(ProcessSchemeEntity.SchemeCode)} = :schemecode " +
-                             $"OR {nameof(ProcessSchemeEntity.RootSchemeCode)} = :schemecode";
-            
-            return await ExecuteCommandNonQueryAsync(connection, command,
-                new OracleParameter("schemecode", OracleDbType.NVarchar2, schemeCode, ParameterDirection.Input)).ConfigureAwait(false);
+                             $"WHERE ({nameof(ProcessSchemeEntity.SchemeCode)} = :schemecode " +
+                             $"OR {nameof(ProcessSchemeEntity.RootSchemeCode)} = :schemecode)";
+
+            var parameters = new List<OracleParameter>
+            {
+                new("schemecode", OracleDbType.NVarchar2, schemeCode, ParameterDirection.Input)
+            };
+
+            if (tenantId != null)
+            {
+                command += $" AND {nameof(ProcessSchemeEntity.TenantId)} = :tenantid";
+                parameters.Add(new OracleParameter("tenantid", OracleDbType.NVarchar2, tenantId, ParameterDirection.Input));
+            }
+
+            return await ExecuteCommandNonQueryAsync(connection, command, parameters.ToArray()).ConfigureAwait(false);
         }
         
         public static async Task DeleteUnusedAsync(OracleConnection connection)

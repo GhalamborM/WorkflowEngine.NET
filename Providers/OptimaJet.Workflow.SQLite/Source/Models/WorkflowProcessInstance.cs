@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using OptimaJet.Workflow.Core.Entities;
 
@@ -36,6 +40,29 @@ namespace OptimaJet.Workflow.SQLite
         {
             string selectText = $"SELECT * FROM {ObjectName} WHERE Id IN ({String.Join(",", ids.Select(x => $"'{x}'"))})";
             return await SelectAsync(connection, selectText).ConfigureAwait(false);
+        }
+
+        public async Task<bool> IsProcessExistsAsync(SqliteConnection connection, Guid processId, string tenantId)
+        {
+            string commandText =
+                $"SELECT COUNT(*) FROM {ObjectName} WHERE {nameof(ProcessInstanceEntity.Id)} = @processid";
+            var parameters = new List<SqliteParameter>
+            {
+                new("processid", DbType.Guid) { Value = ToDbValue(processId, DbType.Guid) }
+            };
+
+            if (tenantId == null)
+            {
+                commandText += $" AND {nameof(ProcessInstanceEntity.TenantId)} IS NULL";
+            }
+            else
+            {
+                commandText += $" AND {nameof(ProcessInstanceEntity.TenantId)} = @tenantid";
+                parameters.Add(new SqliteParameter("tenantid", DbType.String) { Value = tenantId });
+            }
+
+            object result = await ExecuteCommandScalarAsync(connection, commandText, parameters.ToArray()).ConfigureAwait(false);
+            return Convert.ToInt32(result) != 0;
         }
     }
 }

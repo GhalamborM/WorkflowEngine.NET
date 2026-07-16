@@ -22,6 +22,7 @@ namespace OptimaJet.Workflow.SQLite
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.FromStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.IsFinalised), Type = DbType.Boolean},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ProcessId), Type = DbType.Guid},
+                new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToActivityName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.ToStateName)},
                 new ColumnInfo {Name = nameof(ProcessTransitionHistoryEntity.TransitionClassifier)},

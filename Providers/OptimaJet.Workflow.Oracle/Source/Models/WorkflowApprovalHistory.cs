@@ -19,6 +19,7 @@ namespace OptimaJet.Workflow.Oracle
             {
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.Id), IsKey = true, Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.ProcessId), Type = OracleDbType.Raw},
+                new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TenantId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.AllowedTo)},
                 new ColumnInfo {Name = nameof(ApprovalHistoryEntity.TransitionTime), Type = OracleDbType.TimeStamp},
@@ -36,6 +37,7 @@ namespace OptimaJet.Workflow.Oracle
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.Join(",", historyItem.AllowedTo),
                 TransitionTime = historyItem.TransitionTime,
@@ -53,6 +55,7 @@ namespace OptimaJet.Workflow.Oracle
             {
                 Id = historyItem.Id,
                 ProcessId = historyItem.ProcessId,
+                TenantId = historyItem.TenantId,
                 IdentityId = historyItem.IdentityId,
                 AllowedTo = HelperParser.SplitWithTrim(historyItem.AllowedTo, ","),
                 TransitionTime = historyItem.TransitionTime,

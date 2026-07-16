@@ -1,6 +1,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using OptimaJet.Workflow.Core.Entities;
@@ -43,6 +44,29 @@ namespace OptimaJet.Workflow.Oracle
                                 $"WHERE ID IN ({String.Join(",", ids.Select(x => $"HEXTORAW('{BitConverter.ToString(x.ToByteArray()).Replace("-", String.Empty)}')"))})";
             
             return await SelectAsync(connection, selectText).ConfigureAwait(false);
+        }
+
+        public async Task<bool> IsProcessExistsAsync(OracleConnection connection, Guid processId, string tenantId)
+        {
+            string commandText =
+                $"SELECT COUNT(*) FROM {ObjectName} WHERE {nameof(ProcessInstanceEntity.Id)} = :processid";
+            var parameters = new List<OracleParameter>
+            {
+                new("processid", OracleDbType.Raw, ToDbValue(processId, OracleDbType.Raw), ParameterDirection.Input)
+            };
+
+            if (tenantId == null)
+            {
+                commandText += $" AND {nameof(ProcessInstanceEntity.TenantId)} IS NULL";
+            }
+            else
+            {
+                commandText += $" AND {nameof(ProcessInstanceEntity.TenantId)} = :tenantid";
+                parameters.Add(new OracleParameter("tenantid", OracleDbType.NVarchar2, tenantId, ParameterDirection.Input));
+            }
+
+            object result = await ExecuteCommandScalarAsync(connection, commandText, parameters.ToArray()).ConfigureAwait(false);
+            return Convert.ToInt32(result) != 0;
         }
     }
 }

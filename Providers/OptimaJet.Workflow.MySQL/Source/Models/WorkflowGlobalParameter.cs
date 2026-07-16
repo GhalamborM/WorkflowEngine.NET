@@ -19,12 +19,13 @@ namespace OptimaJet.Workflow.MySQL
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Id), IsKey = true, Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Type)},
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Name)},
-                new ColumnInfo {Name = nameof(GlobalParameterEntity.Value)}
+                new ColumnInfo {Name = nameof(GlobalParameterEntity.Value)},
+                new ColumnInfo {Name = nameof(GlobalParameterEntity.TenantId)}
             });
         }
 
         public async Task<GlobalParameterEntity[]> SelectByTypeAndNameAsync(MySqlConnection connection, string type,
-            string name = null, Sorting sort = null)
+            string name = null, Sorting sort = null, string tenantId = null)
         {
             string selectText = $"SELECT * FROM {DbTableName}  WHERE `{nameof(GlobalParameterEntity.Type)}` = @type";
 
@@ -36,6 +37,8 @@ namespace OptimaJet.Workflow.MySQL
                 parameters.Add(new MySqlParameter("name", MySqlDbType.VarString) { Value = name });
             }
 
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
+
             if (sort != null)
             {
                 selectText += $" ORDER BY {sort.FieldName} {sort.SortDirection.UpperName()}";
@@ -44,7 +47,7 @@ namespace OptimaJet.Workflow.MySQL
             return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
         
-        private QueryDefinition GetBasicSearchQuery(string type, string name = null)
+        private QueryDefinition GetBasicSearchQuery(string type, string name = null, string tenantId = null)
         {
             var parameters = new List<MySqlParameter>();
             var selectText = $"FROM {DbTableName} WHERE {nameof(GlobalParameterEntity.Type)} = @type";
@@ -57,13 +60,15 @@ namespace OptimaJet.Workflow.MySQL
                 parameters.Add(new MySqlParameter("name", MySqlDbType.VarString) {Value = $"%{name}%"});
             }
 
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
+
             return new QueryDefinition() {Parameters = parameters, Query = selectText};
         }
 
         public async Task<GlobalParameterEntity[]> SearchByTypeAndNameWithPagingAsync(MySqlConnection connection, string type,
-            string name = null, Paging paging = null, Sorting sort = null)
+            string name = null, Paging paging = null, Sorting sort = null, string tenantId = null)
         {
-            var queryDefinition = GetBasicSearchQuery(type, name);
+            var queryDefinition = GetBasicSearchQuery(type, name, tenantId);
             var parameters = queryDefinition.Parameters;
 
             sort ??= Sorting.Create(nameof(GlobalParameterEntity.Name));
@@ -80,9 +85,9 @@ namespace OptimaJet.Workflow.MySQL
             return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        public async Task<int> GetCountByTypeAndNameAsync(MySqlConnection connection, string type, string name = null)
+        public async Task<int> GetCountByTypeAndNameAsync(MySqlConnection connection, string type, string name = null, string tenantId = null)
         {
-            var queryDefinition = GetBasicSearchQuery(type, name);
+            var queryDefinition = GetBasicSearchQuery(type, name, tenantId);
             var parameters = queryDefinition.Parameters;
             var selectText = $"SELECT COUNT(*) {queryDefinition.Query}";
             
@@ -91,25 +96,31 @@ namespace OptimaJet.Workflow.MySQL
             return Convert.ToInt32(count);
         }
 
-        public async Task<int> DeleteByTypeAndNameAsync(MySqlConnection connection, string type, string name = null)
+        public async Task<int> DeleteByTypeAndNameAsync(MySqlConnection connection, string type, string name = null, string tenantId = null)
         {
             string selectText = $"DELETE FROM {DbTableName}  WHERE `{nameof(GlobalParameterEntity.Type)}` = @type";
+            var parameters = new List<MySqlParameter> {new("type", MySqlDbType.VarString) {Value = type}};
 
             if (!String.IsNullOrEmpty(name))
             {
                 selectText += $" AND `{nameof(GlobalParameterEntity.Name)}` = @name";
+                parameters.Add(new MySqlParameter("name", MySqlDbType.VarString) { Value = name });
             }
 
-            var p = new MySqlParameter("type", MySqlDbType.VarString) { Value = type };
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
 
-            if (String.IsNullOrEmpty(name))
+            return await ExecuteCommandNonQueryAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
+        }
+
+        private static string AddTenantCondition(string selectText, List<MySqlParameter> parameters, string tenantId)
+        {
+            if (tenantId == null)
             {
-                return await ExecuteCommandNonQueryAsync(connection, selectText, p).ConfigureAwait(false);
+                return selectText + $" AND `{nameof(GlobalParameterEntity.TenantId)}` IS NULL";
             }
 
-            var p1 = new MySqlParameter("name", MySqlDbType.VarString) { Value = name };
-
-            return await ExecuteCommandNonQueryAsync(connection, selectText, p, p1).ConfigureAwait(false);
+            parameters.Add(new MySqlParameter("tenantId", MySqlDbType.VarString) {Value = tenantId});
+            return selectText + $" AND `{nameof(GlobalParameterEntity.TenantId)}` = @tenantId";
         }
     }
 }

@@ -31,5 +31,10 @@ namespace OptimaJet.Workflow.SQLite
                 _ => false
             };
         }
+
+        public static bool IsDuplicateKeyException(this PersistenceProviderQueryException exception)
+        {
+            return exception.InnerException is SqliteException { SqliteErrorCode: 19 };
+        }
     }
 }

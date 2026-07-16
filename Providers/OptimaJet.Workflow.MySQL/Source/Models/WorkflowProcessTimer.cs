@@ -20,6 +20,7 @@ namespace OptimaJet.Workflow.MySQL
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.NextExecutionDateTime), Type = MySqlDbType.DateTime},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.Ignore), Type = MySqlDbType.Bit},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.RootProcessId), Type = MySqlDbType.Binary},
+                new ColumnInfo {Name = nameof(ProcessTimerEntity.TenantId), Type = MySqlDbType.VarChar, Size = 128},
             });
         }
 

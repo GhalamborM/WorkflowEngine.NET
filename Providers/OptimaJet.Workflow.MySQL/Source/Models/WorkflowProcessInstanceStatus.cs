@@ -18,7 +18,8 @@ namespace OptimaJet.Workflow.MySQL
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Lock), Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.Status), Type = MySqlDbType.Byte},
                 new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.RuntimeId), Type = MySqlDbType.VarChar},
-                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = MySqlDbType.DateTime}
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.SetTime), Type = MySqlDbType.DateTime},
+                new ColumnInfo {Name = nameof(ProcessInstanceStatusEntity.TenantId), Type = MySqlDbType.VarChar, Size = 128}
             });
         }
 

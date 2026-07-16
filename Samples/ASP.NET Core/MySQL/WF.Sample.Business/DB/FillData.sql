@@ -34,7 +34,7 @@ INSERT INTO `EmployeeRole`(`EmployeeId`, `RoleId`) VALUES (UUID_TO_BIN('b0e6fd4c
 INSERT INTO `EmployeeRole`(`EmployeeId`, `RoleId`) VALUES (UUID_TO_BIN('deb579f9-991c-4db9-a17d-bb1eccf2842c', false), UUID_TO_BIN('71fffb5b-b707-4b3c-951c-c37fdfcc8dfb', false));
 INSERT INTO `EmployeeRole`(`EmployeeId`, `RoleId`) VALUES (UUID_TO_BIN('91f2b471-4a96-4ab7-a41a-ea4293703d16', false), UUID_TO_BIN('71fffb5b-b707-4b3c-951c-c37fdfcc8dfb', false));
 
-INSERT INTO `workflowscheme`(`Code`, `Scheme`) VALUES ('SimpleWF', '
+INSERT INTO `workflowscheme`(`Id`, `Code`, `Scheme`) VALUES (UUID_TO_BIN(UUID(), false), 'SimpleWF', '
 <Process Name="SimpleWF" CanBeInlined="false" Tags="" LogEnabled="false">
   <Designer X="-110" Y="-60" />
   <Actors>

@@ -683,6 +683,13 @@ td .el-checkbox__input {
   line-height: 40px;
 }
 
+.WorkflowDesignerToolbarSchemeTenant {
+  margin-inline-start: 6px;
+  color: #909399;
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .WorkflowDesignerToolbarIcon i {
   font-size: large;
 }

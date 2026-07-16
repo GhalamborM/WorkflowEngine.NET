@@ -47,7 +47,7 @@ namespace OptimaJet.Workflow.MySQL
             return await ExecuteCommandNonQueryAsync(connection, command, transaction, parameters).ConfigureAwait(false);
         }
         
-        public async Task<int> UpsertAsync(MySqlConnection connection, TEntity entity, MySqlTransaction transaction = null)
+        public virtual async Task<int> UpsertAsync(MySqlConnection connection, TEntity entity, MySqlTransaction transaction = null)
         {
             var commandText =
                 $"INSERT INTO {DbTableName} ({String.Join(",", DBColumns.Select(c => $"`{c.Name}`"))}) " +

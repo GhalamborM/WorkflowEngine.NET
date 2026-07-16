@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
 using MySqlConnector;
@@ -20,17 +21,19 @@ namespace OptimaJet.Workflow.MySQL
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeId), Type = MySqlDbType.Binary},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.RootSchemeCode)},
                 new ColumnInfo {Name = nameof(ProcessSchemeEntity.AllowedActivities)},
-                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)}
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.StartingTransition)},
+                new ColumnInfo {Name = nameof(ProcessSchemeEntity.TenantId), Size = 128}
             });
         }
 
-        public async Task<ProcessSchemeEntity[]> SelectAsync(MySqlConnection connection, string schemeCode, bool? isObsolete,
-            Guid? rootSchemeId)
+        public async Task<ProcessSchemeEntity[]> SelectAsync(MySqlConnection connection, string schemeCode, string tenantId,
+            bool? isObsolete, Guid? rootSchemeId)
         {
             string selectText = $"SELECT * FROM {DbTableName} " +
                                 $"WHERE `{nameof(ProcessSchemeEntity.SchemeCode)}` = @schemecode ";
 
             var pSchemeCode = new MySqlParameter("schemecode", MySqlDbType.VarString) {Value = schemeCode};
+            var parameters = new List<MySqlParameter> {pSchemeCode};
 
             if (isObsolete.HasValue)
             {
@@ -48,23 +51,44 @@ namespace OptimaJet.Workflow.MySQL
             {
                 selectText += $" AND `{nameof(ProcessSchemeEntity.RootSchemeId)}` = @drootschemeid";
                 var pRootSchemeId = new MySqlParameter("drootschemeid", MySqlDbType.Binary) {Value = rootSchemeId.Value.ToByteArray()};
-
-                return await SelectAsync(connection, selectText, pSchemeCode, pRootSchemeId).ConfigureAwait(false);
+                parameters.Add(pRootSchemeId);
+            }
+            else
+            {
+                selectText += $" AND `{nameof(ProcessSchemeEntity.RootSchemeId)}` IS NULL";
             }
 
-            selectText += $" AND `{nameof(ProcessSchemeEntity.RootSchemeId)}` IS NULL";
-            return await SelectAsync(connection, selectText, pSchemeCode).ConfigureAwait(false);
+            if (tenantId == null)
+            {
+                selectText += $" AND `{nameof(ProcessSchemeEntity.TenantId)}` IS NULL";
+            }
+            else
+            {
+                selectText += $" AND `{nameof(ProcessSchemeEntity.TenantId)}` = @tenantid";
+                parameters.Add(new MySqlParameter("tenantid", MySqlDbType.VarString) {Value = tenantId});
+            }
+
+            return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        public async Task<int> SetObsoleteAsync(MySqlConnection connection, string schemeCode)
+        public async Task<int> SetObsoleteAsync(MySqlConnection connection, string schemeCode, string tenantId)
         {
             string command = $"UPDATE {DbTableName} SET `{nameof(ProcessSchemeEntity.IsObsolete)}` = 1 " +
-                             $"WHERE `{nameof(ProcessSchemeEntity.SchemeCode)}` = @schemecode " +
-                             $"OR `{nameof(ProcessSchemeEntity.RootSchemeCode)}` = @schemecode";
+                             $"WHERE (`{nameof(ProcessSchemeEntity.SchemeCode)}` = @schemecode " +
+                             $"OR `{nameof(ProcessSchemeEntity.RootSchemeCode)}` = @schemecode)";
 
-            var p = new MySqlParameter("schemecode", MySqlDbType.VarString) {Value = schemeCode};
+            var parameters = new List<MySqlParameter>
+            {
+                new("schemecode", MySqlDbType.VarString) {Value = schemeCode}
+            };
 
-            return await ExecuteCommandNonQueryAsync(connection, command, p).ConfigureAwait(false);
+            if (tenantId != null)
+            {
+                command += $" AND `{nameof(ProcessSchemeEntity.TenantId)}` = @tenantid";
+                parameters.Add(new MySqlParameter("tenantid", MySqlDbType.VarString) {Value = tenantId});
+            }
+
+            return await ExecuteCommandNonQueryAsync(connection, command, parameters.ToArray()).ConfigureAwait(false);
         }
 
         public static async Task DeleteUnusedAsync(MySqlConnection connection)

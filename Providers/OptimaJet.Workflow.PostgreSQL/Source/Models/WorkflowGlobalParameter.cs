@@ -21,12 +21,13 @@ namespace OptimaJet.Workflow.PostgreSQL
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Id), IsKey = true, Type = NpgsqlDbType.Uuid},
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Type)},
                 new ColumnInfo {Name = nameof(GlobalParameterEntity.Name)},
-                new ColumnInfo {Name = nameof(GlobalParameterEntity.Value)}
+                new ColumnInfo {Name = nameof(GlobalParameterEntity.Value)},
+                new ColumnInfo {Name = nameof(GlobalParameterEntity.TenantId)}
             });
         }
 
         public async Task<GlobalParameterEntity[]> SelectByTypeAndNameAsync(NpgsqlConnection connection, string type,
-            string name = null, Sorting sort = null)
+            string name = null, Sorting sort = null, string tenantId = null)
         {
             string selectText = $"SELECT * FROM {ObjectName}  WHERE \"{nameof(GlobalParameterEntity.Type)}\" = @type";
 
@@ -38,6 +39,8 @@ namespace OptimaJet.Workflow.PostgreSQL
                 parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Varchar) {Value = name});
             }
 
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
+
             if (sort != null)
             {
                 selectText += $" ORDER BY \"{sort.FieldName}\" {sort.SortDirection.UpperName()}";
@@ -46,7 +49,7 @@ namespace OptimaJet.Workflow.PostgreSQL
             return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        private QueryDefinition GetBasicSearchQuery(string type, string name = null)
+        private QueryDefinition GetBasicSearchQuery(string type, string name = null, string tenantId = null)
         {
             var parameters = new List<NpgsqlParameter>();
             var selectText = $"FROM {ObjectName} WHERE \"{nameof(GlobalParameterEntity.Type)}\" = @type";
@@ -59,13 +62,15 @@ namespace OptimaJet.Workflow.PostgreSQL
                 parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Varchar) {Value = $"%{name}%"});
             }
 
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
+
             return new QueryDefinition() {Parameters = parameters, Query = selectText};
         }
 
         public async Task<GlobalParameterEntity[]> SearchByTypeAndNameWithPagingAsync(NpgsqlConnection connection, string type,
-            string name = null, Paging paging = null, Sorting sort = null)
+            string name = null, Paging paging = null, Sorting sort = null, string tenantId = null)
         {
-            var queryDefinition = GetBasicSearchQuery(type, name);
+            var queryDefinition = GetBasicSearchQuery(type, name, tenantId);
             var parameters = queryDefinition.Parameters;
 
             sort ??= Sorting.Create(nameof(GlobalParameterEntity.Name));
@@ -83,9 +88,9 @@ namespace OptimaJet.Workflow.PostgreSQL
             return await SelectAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
         }
 
-        public async Task<int> GetCountByTypeAndNameAsync(NpgsqlConnection connection, string type, string name = null)
+        public async Task<int> GetCountByTypeAndNameAsync(NpgsqlConnection connection, string type, string name = null, string tenantId = null)
         {
-            var queryDefinition = GetBasicSearchQuery(type, name);
+            var queryDefinition = GetBasicSearchQuery(type, name, tenantId);
             var parameters = queryDefinition.Parameters;
             var selectText = $"SELECT COUNT(*) {queryDefinition.Query}";
 
@@ -94,25 +99,31 @@ namespace OptimaJet.Workflow.PostgreSQL
             return Convert.ToInt32(count);
         }
 
-        public async Task<int> DeleteByTypeAndNameAsync(NpgsqlConnection connection, string type, string name = null)
+        public async Task<int> DeleteByTypeAndNameAsync(NpgsqlConnection connection, string type, string name = null, string tenantId = null)
         {
             string selectText = $"DELETE FROM {ObjectName}  WHERE \"{nameof(GlobalParameterEntity.Type)}\" = @type";
+            var parameters = new List<NpgsqlParameter> {new("type", NpgsqlDbType.Varchar) {Value = type}};
 
             if (!String.IsNullOrEmpty(name))
             {
                 selectText = selectText + $" AND \"{nameof(GlobalParameterEntity.Name)}\" = @name";
+                parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Varchar) {Value = name});
             }
 
-            var p = new NpgsqlParameter("type", NpgsqlDbType.Varchar) {Value = type};
+            selectText = AddTenantCondition(selectText, parameters, tenantId);
 
-            if (String.IsNullOrEmpty(name))
+            return await ExecuteCommandNonQueryAsync(connection, selectText, parameters.ToArray()).ConfigureAwait(false);
+        }
+
+        private static string AddTenantCondition(string selectText, List<NpgsqlParameter> parameters, string tenantId)
+        {
+            if (tenantId == null)
             {
-                return await ExecuteCommandNonQueryAsync(connection, selectText, p).ConfigureAwait(false);
+                return selectText + $" AND \"{nameof(GlobalParameterEntity.TenantId)}\" IS NULL";
             }
 
-            var p1 = new NpgsqlParameter("name", NpgsqlDbType.Varchar) {Value = name};
-
-            return await ExecuteCommandNonQueryAsync(connection, selectText, p, p1).ConfigureAwait(false);
+            parameters.Add(new NpgsqlParameter("tenantId", NpgsqlDbType.Varchar) {Value = tenantId});
+            return selectText + $" AND \"{nameof(GlobalParameterEntity.TenantId)}\" = @tenantId";
         }
     }
 }

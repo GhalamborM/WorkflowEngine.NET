@@ -22,6 +22,7 @@ namespace OptimaJet.Workflow.DbPersistence
             {
                 new ColumnInfo {Name = nameof(InboxEntity.Id), IsKey = true, Type = SqlDbType.UniqueIdentifier},
                 new ColumnInfo {Name = nameof(InboxEntity.ProcessId), Type = SqlDbType.UniqueIdentifier},
+                new ColumnInfo {Name = nameof(InboxEntity.TenantId), Type = SqlDbType.NVarChar},
                 new ColumnInfo {Name = nameof(InboxEntity.IdentityId), Type = SqlDbType.NVarChar},
                 new ColumnInfo {Name = nameof(InboxEntity.AddingDate), Type = SqlDbType.DateTime},
                 new ColumnInfo {Name = nameof(InboxEntity.AvailableCommands), Type = SqlDbType.NVarChar}
@@ -34,6 +35,7 @@ namespace OptimaJet.Workflow.DbPersistence
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands?.Select(x => x.Name))
@@ -65,6 +67,7 @@ namespace OptimaJet.Workflow.DbPersistence
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = inboxItem.AddingDate,
                         AvailableCommands = availableCommands.Select(x =>

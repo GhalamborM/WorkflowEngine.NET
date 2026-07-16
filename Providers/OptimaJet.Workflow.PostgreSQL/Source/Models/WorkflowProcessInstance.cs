@@ -41,5 +41,28 @@ namespace OptimaJet.Workflow.PostgreSQL
             string selectText = $"SELECT * FROM {ObjectName} WHERE \"Id\" IN ({String.Join(",", ids.Select(x => $"'{x}'"))})";
             return await SelectAsync(connection, selectText).ConfigureAwait(false);
         }
+
+        public async Task<bool> IsProcessExistsAsync(NpgsqlConnection connection, Guid processId, string tenantId)
+        {
+            string commandText =
+                $"SELECT COUNT(*) FROM {ObjectName} WHERE \"{nameof(ProcessInstanceEntity.Id)}\" = @processid";
+            var parameters = new List<NpgsqlParameter>
+            {
+                new("processid", NpgsqlDbType.Uuid) { Value = processId }
+            };
+
+            if (tenantId == null)
+            {
+                commandText += $" AND \"{nameof(ProcessInstanceEntity.TenantId)}\" IS NULL";
+            }
+            else
+            {
+                commandText += $" AND \"{nameof(ProcessInstanceEntity.TenantId)}\" = @tenantid";
+                parameters.Add(new NpgsqlParameter("tenantid", NpgsqlDbType.Varchar) { Value = tenantId });
+            }
+
+            object result = await ExecuteCommandScalarAsync(connection, commandText, parameters.ToArray()).ConfigureAwait(false);
+            return Convert.ToInt32(result) != 0;
+        }
     }
 }

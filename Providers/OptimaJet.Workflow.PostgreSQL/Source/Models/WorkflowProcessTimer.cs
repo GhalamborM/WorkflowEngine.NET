@@ -21,6 +21,7 @@ namespace OptimaJet.Workflow.PostgreSQL
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.NextExecutionDateTime), Type = NpgsqlDbType.Timestamp},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.Ignore), Type = NpgsqlDbType.Boolean},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.RootProcessId), Type = NpgsqlDbType.Uuid},
+                new ColumnInfo {Name = nameof(ProcessTimerEntity.TenantId), Type = NpgsqlDbType.Varchar},
             });
         }
 

@@ -21,6 +21,7 @@ namespace OptimaJet.Workflow.Oracle
             {
                 new ColumnInfo {Name = nameof(InboxEntity.Id), IsKey = true, Type = OracleDbType.Raw},
                 new ColumnInfo {Name = nameof(InboxEntity.ProcessId), Type = OracleDbType.Raw},
+                new ColumnInfo {Name = nameof(InboxEntity.TenantId), Type = OracleDbType.NChar},
                 new ColumnInfo {Name = nameof(InboxEntity.IdentityId), Type = OracleDbType.NChar},
                 new ColumnInfo {Name = nameof(InboxEntity.AddingDate), Type = OracleDbType.TimeStamp},
                 new ColumnInfo {Name = nameof(InboxEntity.AvailableCommands), Type = OracleDbType.NChar}
@@ -33,6 +34,7 @@ namespace OptimaJet.Workflow.Oracle
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands?.Select(x => x.Name))
@@ -50,7 +52,7 @@ namespace OptimaJet.Workflow.Oracle
                 {
                     processInstance = await runtime.Builder.GetProcessInstanceAsync(group.Key).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     processInstance = null;
                 }
@@ -62,6 +64,7 @@ namespace OptimaJet.Workflow.Oracle
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = inboxItem.AddingDate,
                         AvailableCommands = availableCommands.Select(x =>

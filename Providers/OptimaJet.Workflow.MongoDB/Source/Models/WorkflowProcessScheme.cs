@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 // ReSharper disable once CheckNamespace
@@ -14,5 +14,6 @@ namespace OptimaJet.Workflow.MongoDB
         public string RootSchemeCode { get; set; }
         public List<string> AllowedActivities { get; set; }
         public string StartingTransition { get; set; }
+        public string TenantId { get; set; }
     }
 }

@@ -1,0 +1,18 @@
+DECLARE
+    v_table_count NUMBER;
+    v_has_rows NUMBER;
+BEGIN
+    SELECT COUNT(*)
+    INTO v_table_count
+    FROM USER_TABLES
+    WHERE TABLE_NAME = 'WORKFLOWPROCESSASSIGNMENT';
+
+    IF v_table_count > 0 THEN
+        EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM WORKFLOWPROCESSASSIGNMENT WHERE ROWNUM = 1'
+            INTO v_has_rows;
+
+        IF v_has_rows = 0 THEN
+            EXECUTE IMMEDIATE 'DROP TABLE WORKFLOWPROCESSASSIGNMENT';
+        END IF;
+    END IF;
+END;

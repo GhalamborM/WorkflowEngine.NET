@@ -33,5 +33,10 @@ namespace OptimaJet.Workflow.DbPersistence
             bool canRepeatQuery = exception.CanRepeatQuery();
             return new PersistenceProviderQueryException(!suppressRetry && canRepeatQuery, canRepeatQuery, exception);
         }
+
+        public static bool IsDuplicateKeyException(this PersistenceProviderQueryException exception)
+        {
+            return exception.InnerException is SqlException { Number: 2601 or 2627 };
+        }
     }
 }

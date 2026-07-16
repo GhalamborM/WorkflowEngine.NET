@@ -83,7 +83,7 @@ namespace OptimaJet.Workflow.DbPersistence
                 .ConfigureAwait(false);
         }
 
-        public async Task<int> UpsertAsync(SqlConnection connection, TEntity entity, SqlTransaction transaction = null)
+        public virtual async Task<int> UpsertAsync(SqlConnection connection, TEntity entity, SqlTransaction transaction = null)
         {
             if (transaction != null)
             {
@@ -303,19 +303,7 @@ namespace OptimaJet.Workflow.DbPersistence
         {
             try
             {
-                return await SelectInternalAsync(connection, commandText, false, parameters).ConfigureAwait(false);
-            }
-            catch (Exception e)
-            {
-                throw e.ToQueryException();
-            }
-        }
-        
-        public async Task<TEntity[]> SelectWithTransactionAsync(SqlConnection connection, string commandText, params SqlParameter[] parameters)
-        {
-            try
-            {
-                return await SelectInternalAsync(connection, commandText, true, parameters).ConfigureAwait(false);
+                return await SelectInternalAsync(connection, commandText, transaction: null, parameters).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -323,6 +311,23 @@ namespace OptimaJet.Workflow.DbPersistence
             }
         }
 
+        public async Task<TEntity[]> SelectAsync(SqlConnection connection, string commandText, SqlTransaction transaction,
+            params SqlParameter[] parameters)
+        {
+            if (transaction == null)
+            {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+
+            try
+            {
+                return await SelectInternalAsync(connection, commandText, transaction, parameters).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                throw e.ToQueryException();
+            }
+        }
         public async Task<List<Dictionary<string, object>>> SelectAsDictionaryAsync(SqlConnection connection, string commandText,
             params SqlParameter[] parameters)
         {
@@ -351,7 +356,7 @@ namespace OptimaJet.Workflow.DbPersistence
             }
             catch (Exception e)
             {
-                throw e.ToQueryException(transaction == null);
+                throw e.ToQueryException(suppressRetry: transaction == null);
             }
         }
 
@@ -370,7 +375,7 @@ namespace OptimaJet.Workflow.DbPersistence
             }
             catch (Exception e)
             {
-                throw e.ToQueryException(transaction == null);
+                throw e.ToQueryException(suppressRetry: transaction == null);
             }
         }
 
@@ -398,14 +403,13 @@ namespace OptimaJet.Workflow.DbPersistence
             }
         }
 
-        private async Task<TEntity[]> SelectInternalAsync(SqlConnection connection, string commandText, bool createTransaction, SqlParameter[] parameters)
+        private async Task<TEntity[]> SelectInternalAsync(SqlConnection connection, string commandText, SqlTransaction transaction,
+            SqlParameter[] parameters)
         {
             if (connection.State != ConnectionState.Open)
             {
                 await connection.OpenAsync().ConfigureAwait(false);
             }
-
-            using SqlTransaction transaction = createTransaction ? connection.BeginTransaction() : null;
 
             using (var command = connection.CreateCommand())
             {
@@ -440,7 +444,6 @@ namespace OptimaJet.Workflow.DbPersistence
                     }
                 }
 
-                transaction?.Commit();
                 return entities.ToArray();
             }
         }

@@ -17,6 +17,7 @@ namespace OptimaJet.Workflow.SQLite
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.NextExecutionDateTime), Type = DbType.DateTime2},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.Ignore), Type = DbType.Boolean},
                 new ColumnInfo {Name = nameof(ProcessTimerEntity.RootProcessId), Type = DbType.Guid},
+                new ColumnInfo {Name = nameof(ProcessTimerEntity.TenantId)},
             });
         }
 

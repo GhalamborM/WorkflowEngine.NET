@@ -18,6 +18,7 @@ namespace OptimaJet.Workflow.SQLite
             {
                 new ColumnInfo {Name = nameof(InboxEntity.Id), IsKey = true, Type = DbType.Guid},
                 new ColumnInfo {Name = nameof(InboxEntity.ProcessId), Type = DbType.Guid},
+                new ColumnInfo {Name = nameof(InboxEntity.TenantId)},
                 new ColumnInfo {Name = nameof(InboxEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(InboxEntity.AddingDate), Type = DbType.DateTime2},
                 new ColumnInfo {Name = nameof(InboxEntity.AvailableCommands)}
@@ -30,6 +31,7 @@ namespace OptimaJet.Workflow.SQLite
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands?.Select(x => x.Name))
@@ -62,6 +64,7 @@ namespace OptimaJet.Workflow.SQLite
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = inboxItem.AddingDate,
                         AvailableCommands = availableCommands.Select(x =>

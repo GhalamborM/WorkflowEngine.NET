@@ -50,7 +50,7 @@ namespace OptimaJet.Workflow.SQLite
             return await ExecuteCommandNonQueryAsync(connection, commandText, transaction, parameters).ConfigureAwait(false);
         }
 
-        public async Task<int> UpsertAsync(SqliteConnection connection, TEntity entity, SqliteTransaction transaction = null)
+        public virtual async Task<int> UpsertAsync(SqliteConnection connection, TEntity entity, SqliteTransaction transaction = null)
         {
             var commandText =
                 $"INSERT INTO {ObjectName} ({String.Join(",", DBColumns.Where(c => !c.IsVirtual).Select(c => $"{c.Name}"))}) " +
@@ -231,7 +231,7 @@ namespace OptimaJet.Workflow.SQLite
             }
             catch (Exception e)
             {
-                throw e.ToQueryException(transaction == null);
+                throw e.ToQueryException(suppressRetry: transaction == null);
             }
         }
 
@@ -277,7 +277,7 @@ namespace OptimaJet.Workflow.SQLite
             }
             catch (Exception e)
             {
-                throw e.ToQueryException(transaction == null);
+                throw e.ToQueryException(suppressRetry: transaction == null);
             }
         }
         

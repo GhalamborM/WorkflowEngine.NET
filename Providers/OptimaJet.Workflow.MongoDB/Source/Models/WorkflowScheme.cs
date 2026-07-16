@@ -11,6 +11,7 @@ namespace OptimaJet.Workflow.MongoDB
         public string Scheme { get; set; }
         public bool CanBeInlined { get; set; }
         public List<string> InlinedSchemes { get; set; }
-        public  List<string> Tags  { get; set; }
+        public List<string> Tags { get; set; }
+        public string TenantId { get; set; }
     }
 }

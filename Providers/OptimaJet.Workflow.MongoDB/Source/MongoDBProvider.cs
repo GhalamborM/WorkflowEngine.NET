@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -45,6 +44,9 @@ namespace OptimaJet.Workflow.MongoDB
 
     public class MongoDBProvider : IWorkflowProvider
     {
+        private const int CreateNewFormVersionMaxAttempts = 3;
+        private const int CreateNewFormVersionRetryDelayMilliseconds = 50;
+
         private WorkflowRuntime _runtime;
         private readonly bool _writeToHistory;
         private readonly bool _writeSubProcessToRoot;
@@ -77,129 +79,47 @@ namespace OptimaJet.Workflow.MongoDB
             return new SchemeDefinition<XElement>(workflowProcessScheme.Id, workflowProcessScheme.RootSchemeId,
                 workflowProcessScheme.SchemeCode, workflowProcessScheme.RootSchemeCode,
                 XElement.Parse(workflowProcessScheme.Scheme), workflowProcessScheme.IsObsolete,
-                workflowProcessScheme.AllowedActivities, workflowProcessScheme.StartingTransition);
+                workflowProcessScheme.AllowedActivities, workflowProcessScheme.StartingTransition, workflowProcessScheme.TenantId);
+        }
+
+        private static FilterDefinition<WorkflowProcessScheme> GetWorkflowProcessSchemeTenantFilter(string tenantId)
+        {
+            return tenantId == null
+                ? Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.TenantId, null)
+                : Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.TenantId, tenantId);
+        }
+
+        private static FilterDefinition<WorkflowScheme> GetWorkflowSchemeExactFilter(string schemeCode, string tenantId)
+        {
+            var filterBuilder = Builders<WorkflowScheme>.Filter;
+            FilterDefinition<WorkflowScheme> tenantFilter = tenantId == null
+                ? filterBuilder.Eq(scheme => scheme.TenantId, null)
+                : filterBuilder.Eq(scheme => scheme.TenantId, tenantId);
+
+            return filterBuilder.And(
+                filterBuilder.Eq(scheme => scheme.Code, schemeCode),
+                tenantFilter);
+        }
+
+        private async Task<WorkflowScheme> GetWorkflowSchemeAsync(IMongoCollection<WorkflowScheme> collection,
+            string schemeCode, string tenantId)
+        {
+            WorkflowScheme scheme = await (await collection.FindAsync(GetWorkflowSchemeExactFilter(schemeCode, tenantId))
+                    .ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
+
+            if (scheme != null || tenantId == null)
+            {
+                return scheme;
+            }
+
+            return await (await collection.FindAsync(GetWorkflowSchemeExactFilter(schemeCode, null)).ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
         }
 
         #region IPersistenceProvider
-
-        #region IAssignmentProvider
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task DeleteAssignmentAsync(Guid assignmentId)
-        {
-            IMongoCollection<WorkflowProcessAssignment> dbcollAssignment = Store.GetCollection<WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            await dbcollAssignment.DeleteOneAsync(x => x.Id == assignmentId).ConfigureAwait(false);
-        }
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task<List<Assignment>> GetAssignmentsAsync(AssignmentFilter filter, List<(string parameterName, SortDirection sortDirection)> orderParameters = null, Paging paging = null)
-        {
-            List<WorkflowProcessAssignment> assignments;
-            
-            IMongoQueryable<WorkflowProcessAssignment> assignmentQueryable = GetWorkflowProcessAssignmentQueryable(filter);
-            
-            if (paging is null && orderParameters is null)
-            {
-                assignments = await assignmentQueryable.ToListAsync().ConfigureAwait(false);
-            }
-            else
-            {
-                IQueryable<WorkflowProcessAssignment> query = assignmentQueryable.AsQueryable();
-                if (orderParameters != null)
-                {
-                    foreach (var orderParameter in orderParameters)
-                    {
-                        query = orderParameter.sortDirection == SortDirection.Desc
-                            ? Queryable.OrderByDescending(query, WorkflowProcessAssignment.OrderFunctions[orderParameter.parameterName].Expression)
-                            : Queryable.OrderBy(query, WorkflowProcessAssignment.OrderFunctions[orderParameter.parameterName].Expression);
-                    }
-                }
-
-                if (paging != null)
-                { 
-                    query = query.Skip(paging.SkipCount())
-                        .Take(paging.PageSize);
-                }
-
-                assignments = query.ToList();
-            }
-            
-            return assignments.Select(a => a.ConvertToAssignment(_runtime)).ToList();
-        }
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task<int> GetAssignmentCountAsync(AssignmentFilter filter)
-        {
-            IMongoQueryable<WorkflowProcessAssignment> workflowProcessAssignmentQueryable = GetWorkflowProcessAssignmentQueryable(filter);
-
-            return await workflowProcessAssignmentQueryable.CountAsync().ConfigureAwait(false);
-        }
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task CreateAssignmentAsync(Guid processId, AssignmentCreationForm form)
-        {
-            IMongoCollection<WorkflowProcessAssignment> dbcoll = 
-                Store.GetCollection<WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            
-            var assignment = new WorkflowProcessAssignment
-            {
-                Id = form.Id ?? Guid.NewGuid(),
-                AssignmentCode = form.AssignmentCode,
-                Name = form.Name,
-                Description = form.Description,
-                Executor = form.Executor,
-                ProcessId = processId,
-                StatusState = AssignmentPlugin.DefaultStatus,
-                IsDeleted = false,
-                IsActive = form.IsActive,
-                DeadlineToComplete = form.DeadlineToComplete,
-                DeadlineToStart = form.DeadlineToStart,
-                Observers = form.Observers,
-                Tags = form.Tags,
-                DateCreation = _runtime.RuntimeDateTimeNow
-            };
-
-            await dbcoll.InsertOneAsync(assignment).ConfigureAwait(false);
-        }
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task<Assignment> GetAssignmentAsync(Guid assignmentId)
-        {
-            IMongoCollection<WorkflowProcessAssignment> dbcoll = Store.GetCollection<WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            var result = await (await dbcoll.FindAsync(x => x.Id == assignmentId).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
-
-            if (result == null)
-            {
-                return null;
-            }
-
-            return result.ConvertToAssignment(_runtime);
-        }
-
-        [Obsolete("Do not use Assignment Plugin or related API. It will be removed soon.")]
-        public async Task UpdateAssignmentAsync(Assignment a)
-        {
-            IMongoCollection<WorkflowProcessAssignment> dbcoll = Store.GetCollection<Models.WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            
-            var updater = Builders<WorkflowProcessAssignment>.Update
-                .Set(x => x.Name, a.Name)
-                .Set(x => x.Description, a.Description)
-                .Set(x => x.Executor, a.Executor)
-                .Set(x => x.ProcessId, a.ProcessId)
-                .Set(x => x.StatusState, a.StatusState)
-                .Set(x => x.DateStart, a.DateStart)
-                .Set(x => x.DateFinish, a.DateFinish)
-                .Set(x => x.IsActive, a.IsActive)
-                .Set(x => x.IsDeleted, a.IsDeleted)
-                .Set(x => x.DeadlineToComplete, a.DeadlineToComplete)
-                .Set(x => x.DeadlineToStart, a.DeadlineToStart)
-                .Set(x => x.Observers, a.Observers ?? new List<string>())
-                .Set(x => x.Tags, a.Tags ?? new List<string>());
-            
-            UpdateResult result = await dbcoll.UpdateOneAsync(x => x.Id == a.AssignmentId, updater).ConfigureAwait(false);
-        }
-        
-        #endregion
 
         public virtual async Task DeleteInactiveTimersByProcessIdAsync(Guid processId)
         {
@@ -373,20 +293,29 @@ namespace OptimaJet.Workflow.MongoDB
                 }
             }
 
-            if (sortDefinitions.Count == 0)
+            if (paging != null && sortDefinitions.Count == 0)
             {
-                sortDefinitions.Add(Builders<WorkflowScheme>.Sort.Ascending("Id"));
+                // Other providers use WorkflowScheme.Code as the default sort for paging.
+                sortDefinitions.Add(Builders<WorkflowScheme>.Sort.Ascending(nameof(WorkflowScheme.Code)));
             }
 
             FilterDefinition<WorkflowScheme> filter = Builders<WorkflowScheme>.Filter.Empty;
-            SortDefinition<WorkflowScheme> combinedSort = Builders<WorkflowScheme>.Sort.Combine(sortDefinitions);
-            List<WorkflowScheme> schemes = await workflowSchemeCollection
-                .Find(filter)
-                .Sort(combinedSort)
-                .Skip(paging?.SkipCount() ?? 0)
-                .Limit(paging?.PageSize ?? 0)
-                .ToListAsync()
-                .ConfigureAwait(false);
+            IFindFluent<WorkflowScheme, WorkflowScheme> query = workflowSchemeCollection.Find(filter);
+
+            if (sortDefinitions.Count > 0)
+            {
+                SortDefinition<WorkflowScheme> combinedSort = Builders<WorkflowScheme>.Sort.Combine(sortDefinitions);
+                query = query.Sort(combinedSort);
+            }
+
+            if (paging != null)
+            {
+                query = query
+                    .Skip(paging.SkipCount())
+                    .Limit(paging.PageSize);
+            }
+
+            List<WorkflowScheme> schemes = await query.ToListAsync().ConfigureAwait(false);
             
             return schemes.Select(scheme => new SchemeItem
             {
@@ -688,6 +617,7 @@ namespace OptimaJet.Workflow.MongoDB
                 ToStateName = processInstance.CurrentState,
                 TransitionClassifier = nameof(TransitionClassifier.NotSpecified),
                 TransitionTime = _runtime.RuntimeDateTimeNow,
+                TenantId = processInstance.TenantId,
                 TriggerName = "Initializing",
                 StartTransitionTime = _runtime.RuntimeDateTimeNow,
                 TransitionDuration = 0
@@ -777,6 +707,7 @@ namespace OptimaJet.Workflow.MongoDB
                 Id = Guid.NewGuid(),
                 IsFinalised = transition.To.IsFinal,
                 ProcessId = _writeSubProcessToRoot && processInstance.IsSubprocess ? processInstance.RootProcessId : processInstance.ProcessId,
+                TenantId = processInstance.TenantId,
                 FromActivityName = transition.From.Name,
                 FromStateName = transition.From.State,
                 ToActivityName = transition.To.Name,
@@ -797,6 +728,29 @@ namespace OptimaJet.Workflow.MongoDB
             IMongoCollection<WorkflowProcessInstance> dbcoll = Store.GetCollection<WorkflowProcessInstance>(MongoDBConstants.WorkflowProcessInstanceCollectionName);
             return await dbcoll.CountDocumentsAsync(x => x.Id == processId).ConfigureAwait(false) != 0;
         }
+
+        public virtual async Task<bool> IsProcessExistsAsync(Guid processId, string tenantId)
+        {
+            IMongoCollection<WorkflowProcessInstance> dbcoll = Store.GetCollection<WorkflowProcessInstance>(MongoDBConstants.WorkflowProcessInstanceCollectionName);
+            FilterDefinitionBuilder<WorkflowProcessInstance> filterBuilder = Builders<WorkflowProcessInstance>.Filter;
+
+            if (tenantId == null)
+            {
+                FilterDefinition<WorkflowProcessInstance> filter =
+                    filterBuilder.Eq(x => x.Id, processId) &
+                    filterBuilder.Eq(x => x.TenantId, null);
+
+                return await dbcoll.CountDocumentsAsync(filter)
+                    .ConfigureAwait(false) != 0;
+            }
+
+            FilterDefinition<WorkflowProcessInstance> sameTenantFilter =
+                filterBuilder.Eq(x => x.Id, processId) &
+                filterBuilder.Eq(x => x.TenantId, tenantId);
+
+            return await dbcoll.CountDocumentsAsync(sameTenantFilter)
+                .ConfigureAwait(false) != 0;
+        }
         
         public virtual async Task<ProcessStatus> GetInstanceStatusAsync(Guid processId)
         {
@@ -812,65 +766,6 @@ namespace OptimaJet.Workflow.MongoDB
             ProcessStatus status = ProcessStatus.All.SingleOrDefault(ins => ins.Id == instanceStatus.Status);
             
             return status ?? ProcessStatus.Unknown;
-        }
-        
-        //todo review
-        private IMongoQueryable<WorkflowProcessAssignment> GetWorkflowProcessAssignmentQueryable(AssignmentFilter filter)
-        {
-            IMongoCollection<WorkflowProcessAssignment> workflowProcessAssignmentCollection =
-                Store.GetCollection<WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            
-            var parameters = filter.Parameters;
-
-            ParameterExpression argParam = Expression.Parameter(typeof(WorkflowProcessAssignment), "wpa");
-
-            IMongoQueryable<WorkflowProcessAssignment> assignmentQueryable =
-                workflowProcessAssignmentCollection.AsQueryable();
-            
-            foreach (var parameter in parameters)
-            {
-                switch (parameter.ExpressionType)
-                {
-                    case FilterExpressionType.Equal:
-                        var namePropertyEqual = Expression.Property(argParam, WorkflowProcessAssignment.GetPropertyName(parameter.Name) );
-                        var valEqual = Expression.Constant(parameter.Value);
-                        var expressionEqual = Expression.Equal(namePropertyEqual, valEqual);
-                        var lambdaEqual = Expression.Lambda<Func<WorkflowProcessAssignment, bool>>(expressionEqual, argParam);
-                        
-                        assignmentQueryable = assignmentQueryable.Where(lambdaEqual);
-                        break;
-                    
-                    case FilterExpressionType.In:
-                        
-                        var methodInfo = typeof(List<string>).GetMethod("Contains", new Type[] { typeof(string) });
-                        var member = Expression.Property(argParam, WorkflowProcessAssignment.GetPropertyName(parameter.Name)); 
-                        var filterValues = new List<string>();
-                        
-                        foreach (var v in (IEnumerable)parameter.Value)
-                        {
-                            filterValues.Add((string) v);
-                        }
-            
-                        Expression body = Expression.Call(Expression.Constant(filterValues), methodInfo, member);
-                        var finalExpression = Expression.Lambda<Func<WorkflowProcessAssignment, bool>>(body, argParam);
-                        
-                        assignmentQueryable = assignmentQueryable.Where(finalExpression);
-                        break;
-                        
-                    case FilterExpressionType.Like:
-                      
-                        var methodInfoAny = typeof(List<string>).GetMethod("Contains", new Type[] { typeof(string) });
-                        var memberAny = Expression.Property(argParam, WorkflowProcessAssignment.GetPropertyName(parameter.Name));
-
-                        Expression bodyAny = Expression.Call(memberAny, methodInfoAny,Expression.Constant(parameter.Value) );
-                        var finalExpressionAny = Expression.Lambda<Func<WorkflowProcessAssignment, bool>>(bodyAny, argParam);
-                        
-                        assignmentQueryable = assignmentQueryable.Where(finalExpressionAny);
-                        break;
-                }
-            }
-
-            return assignmentQueryable;
         }
         
         private async Task SetCustomStatusAsync(Guid processId, ProcessStatus status)
@@ -1126,19 +1021,30 @@ namespace OptimaJet.Workflow.MongoDB
             }
         }
 
-        public virtual async Task SaveGlobalParameterAsync<T>(string type, string name, T value)
+        public virtual Task SaveGlobalParameterAsync<T>(string type, string name, T value)
+        {
+            return SaveGlobalParameterAsync(new TenantGlobalParameterKey { Type = type, TenantId = null, Name = name }, value);
+        }
+
+        public virtual Task SaveTenantGlobalParameterAsync<T>(TenantGlobalParameterKey key, T value)
+        {
+            return SaveGlobalParameterAsync(key, value);
+        }
+
+        private async Task SaveGlobalParameterAsync<T>(TenantGlobalParameterKey key, T value)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
-            WorkflowGlobalParameter parameter = await (await dbcoll.FindAsync(item => item.Type == type && item.Name == name).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
+            WorkflowGlobalParameter parameter = await (await dbcoll.FindAsync(GetGlobalParameterPredicate(key)).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
 
             if (parameter == null)
             {
                 parameter = new WorkflowGlobalParameter
                 {
                     Id = Guid.NewGuid(),
-                    Name = name,
-                    Type = type,
+                    Name = key.Name,
+                    Type = key.Type,
+                    TenantId = key.TenantId,
                     Value = Newtonsoft.Json.JsonConvert.SerializeObject(value)
                 };
 
@@ -1151,11 +1057,21 @@ namespace OptimaJet.Workflow.MongoDB
             }
         }
 
-        public virtual async Task<T> LoadGlobalParameterAsync<T>(string type, string name)
+        public virtual Task<T> LoadGlobalParameterAsync<T>(string type, string name)
+        {
+            return LoadGlobalParameterAsync<T>(new TenantGlobalParameterKey { Type = type, TenantId = null, Name = name });
+        }
+
+        public virtual Task<T> LoadTenantGlobalParameterAsync<T>(TenantGlobalParameterKey key)
+        {
+            return LoadGlobalParameterAsync<T>(key);
+        }
+
+        private async Task<T> LoadGlobalParameterAsync<T>(TenantGlobalParameterKey key)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
-            WorkflowGlobalParameter parameter = await (await dbcoll.FindAsync(item => item.Type == type && item.Name == name).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
+            WorkflowGlobalParameter parameter = await (await dbcoll.FindAsync(GetGlobalParameterPredicate(key)).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
 
             if (parameter != null)
             {
@@ -1165,7 +1081,17 @@ namespace OptimaJet.Workflow.MongoDB
             return default;
         }
 
-        public async Task<Dictionary<string, T>> LoadGlobalParametersWithNamesAsync<T>(string type, Sorting sort = null)
+        public Task<Dictionary<string, T>> LoadGlobalParametersWithNamesAsync<T>(string type, Sorting sort = null)
+        {
+            return LoadGlobalParametersWithNamesAsync<T>(new TenantGlobalParameterScope { Type = type, TenantId = null }, sort);
+        }
+
+        public Task<Dictionary<string, T>> LoadTenantGlobalParametersWithNamesAsync<T>(TenantGlobalParameterScope scope, Sorting sort = null)
+        {
+            return LoadGlobalParametersWithNamesAsync<T>(scope, sort);
+        }
+
+        private async Task<Dictionary<string, T>> LoadGlobalParametersWithNamesAsync<T>(TenantGlobalParameterScope scope, Sorting sort = null)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
@@ -1174,7 +1100,7 @@ namespace OptimaJet.Workflow.MongoDB
                 Sort = GetSortDefinition<WorkflowGlobalParameter>(sort)
             };
 
-            var asyncCursor = await dbcoll.FindAsync(item => item.Type == type, findOptions).ConfigureAwait(false);
+            var asyncCursor = await dbcoll.FindAsync(GetGlobalParameterPredicate(scope), findOptions).ConfigureAwait(false);
             var parameters = await asyncCursor.ToListAsync().ConfigureAwait(false);
 
             var dict = new Dictionary<string, T>();
@@ -1186,7 +1112,17 @@ namespace OptimaJet.Workflow.MongoDB
             return dict;
         }
         
-        public virtual async Task<List<T>> LoadGlobalParametersAsync<T>(string type, Sorting sort = null)
+        public virtual Task<List<T>> LoadGlobalParametersAsync<T>(string type, Sorting sort = null)
+        {
+            return LoadGlobalParametersAsync<T>(new TenantGlobalParameterScope { Type = type, TenantId = null }, sort);
+        }
+
+        public virtual Task<List<T>> LoadTenantGlobalParametersAsync<T>(TenantGlobalParameterScope scope, Sorting sort = null)
+        {
+            return LoadGlobalParametersAsync<T>(scope, sort);
+        }
+
+        private async Task<List<T>> LoadGlobalParametersAsync<T>(TenantGlobalParameterScope scope, Sorting sort = null)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
@@ -1195,20 +1131,32 @@ namespace OptimaJet.Workflow.MongoDB
                 Sort = GetSortDefinition<WorkflowGlobalParameter>(sort)
             };
             
-            var findAsync = dbcoll.FindAsync(item => item.Type == type, findOptions);
+            var findAsync = dbcoll.FindAsync(GetGlobalParameterPredicate(scope), findOptions);
             var asyncCursor = await findAsync.ConfigureAwait(false);
             var parameters = await asyncCursor.ToListAsync().ConfigureAwait(false);
             
             return parameters.Select(gp => Newtonsoft.Json.JsonConvert.DeserializeObject<T>(gp.Value)).ToList();
         }
         
-        public virtual async Task<PagedResponse<T>> LoadGlobalParametersWithPagingAsync<T>(string type, Paging paging, string name = null,
+        public virtual Task<PagedResponse<T>> LoadGlobalParametersWithPagingAsync<T>(string type, Paging paging, string name = null,
             Sorting sort = null)
+        {
+            return LoadGlobalParametersWithPagingAsync<T>(new TenantGlobalParameterScope { Type = type, TenantId = null }, paging, name, sort);
+        }
+
+        public virtual Task<PagedResponse<T>> LoadTenantGlobalParametersWithPagingAsync<T>(TenantGlobalParameterScope scope, Paging paging,
+            Sorting sort = null)
+        {
+            return LoadGlobalParametersWithPagingAsync<T>(scope, paging, null, sort);
+        }
+
+        private async Task<PagedResponse<T>> LoadGlobalParametersWithPagingAsync<T>(TenantGlobalParameterScope scope, Paging paging,
+            string name = null, Sorting sort = null)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll =
                 Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
-            var parametersQuery = dbcoll.Aggregate().Match(c => c.Type == type);
-            var countQuery = dbcoll.AsQueryable().Where(c => c.Type == type);
+            var parametersQuery = dbcoll.Aggregate().Match(GetGlobalParameterPredicate(new TenantGlobalParameterScope { Type = scope.Type, TenantId = scope.TenantId }));
+            var countQuery = dbcoll.AsQueryable().Where(GetGlobalParameterPredicate(new TenantGlobalParameterScope { Type = scope.Type, TenantId = scope.TenantId }));
 
             if (!String.IsNullOrEmpty(name))
             {
@@ -1229,22 +1177,56 @@ namespace OptimaJet.Workflow.MongoDB
             };
         }
 
-        public virtual async Task DeleteGlobalParametersAsync(string type, string name = null)
+        public virtual Task DeleteGlobalParametersAsync(string type, string name = null)
+        {
+            return name == null
+                ? DeleteGlobalParametersAsync(new TenantGlobalParameterScope { Type = type, TenantId = null })
+                : DeleteGlobalParameterAsync(new TenantGlobalParameterKey { Type = type, TenantId = null, Name = name });
+        }
+
+        public virtual Task DeleteTenantGlobalParametersAsync(TenantGlobalParameterScope scope)
+        {
+            return DeleteGlobalParametersAsync(scope);
+        }
+
+        public virtual Task DeleteTenantGlobalParameterAsync(TenantGlobalParameterKey key)
+        {
+            return DeleteGlobalParameterAsync(key);
+        }
+
+        private async Task DeleteGlobalParametersAsync(TenantGlobalParameterScope scope)
         {
             IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
-            Expression<Func<WorkflowGlobalParameter, bool>> predicate;
+            await dbcoll.DeleteManyAsync(GetGlobalParameterPredicate(scope)).ConfigureAwait(false);
+        }
 
-            if(String.IsNullOrEmpty(name))
-            {
-                predicate = item => item.Type == type;
-            }
-            else
-            {
-                predicate = item => item.Type == type && item.Name == name;
-            }
+        private async Task DeleteGlobalParameterAsync(TenantGlobalParameterKey key)
+        {
+            IMongoCollection<WorkflowGlobalParameter> dbcoll = Store.GetCollection<WorkflowGlobalParameter>(MongoDBConstants.WorkflowGlobalParameterCollectionName);
 
-            await dbcoll.DeleteManyAsync(predicate).ConfigureAwait(false);
+            await dbcoll.DeleteManyAsync(GetGlobalParameterPredicate(key)).ConfigureAwait(false);
+        }
+
+        private static Expression<Func<WorkflowGlobalParameter, bool>> GetGlobalParameterPredicate(TenantGlobalParameterScope scope)
+        {
+            string type = scope.Type;
+            string tenantId = scope.TenantId;
+
+            return tenantId == null
+                ? item => item.Type == type && item.TenantId == null
+                : item => item.Type == type && item.TenantId == tenantId;
+        }
+
+        private static Expression<Func<WorkflowGlobalParameter, bool>> GetGlobalParameterPredicate(TenantGlobalParameterKey key)
+        {
+            string type = key.Type;
+            string name = key.Name;
+            string tenantId = key.TenantId;
+
+            return tenantId == null
+                ? item => item.Type == type && item.Name == name && item.TenantId == null
+                : item => item.Type == type && item.Name == name && item.TenantId == tenantId;
         }
 
         public virtual async Task DeleteProcessAsync(Guid processId)
@@ -1263,12 +1245,9 @@ namespace OptimaJet.Workflow.MongoDB
             
             IMongoCollection<WorkflowApprovalHistory> dbcollApprovalHisory = Store.GetCollection<WorkflowApprovalHistory>(MongoDBConstants.WorkflowApprovalHistoryCollectionName);
             await dbcollApprovalHisory.DeleteManyAsync(c => c.ProcessId == processId).ConfigureAwait(false);
-            
-            IMongoCollection<WorkflowProcessAssignment> dbcollAssignment = Store.GetCollection<WorkflowProcessAssignment>(MongoDBConstants.WorkflowProcessAssignmentCollectionName);
-            await dbcollAssignment.DeleteManyAsync(c => c.ProcessId == processId).ConfigureAwait(false);
         }
 
-        public virtual async Task RegisterTimerAsync(Guid processId, Guid rootProcessId, string name, DateTime nextExecutionDateTime, bool notOverrideIfExists)
+        public virtual async Task RegisterTimerAsync(Guid processId, Guid rootProcessId, string name, DateTime nextExecutionDateTime, string tenantId, bool notOverrideIfExists)
         {
             IMongoCollection<WorkflowProcessTimer> dbcoll = Store.GetCollection<WorkflowProcessTimer>(MongoDBConstants.WorkflowProcessTimerCollectionName);
             WorkflowProcessTimer timer = await (await dbcoll.FindAsync(item => item.ProcessId == processId && item.Name == name).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
@@ -1281,7 +1260,8 @@ namespace OptimaJet.Workflow.MongoDB
                     NextExecutionDateTime = nextExecutionDateTime,
                     ProcessId = processId,
                     RootProcessId = rootProcessId,
-                    Ignore = false
+                    Ignore = false,
+                    TenantId = tenantId
                 };
 
                 await dbcoll.InsertOneAsync(timer).ConfigureAwait(false);
@@ -1581,24 +1561,30 @@ namespace OptimaJet.Workflow.MongoDB
             return ConvertToSchemeDefinition(processScheme);
         }
 
-        public virtual async Task<SchemeDefinition<XElement>> GetProcessSchemeWithParametersAsync(string schemeCode, Guid? rootSchemeId, bool ignoreObsolete)
+        public virtual async Task<SchemeDefinition<XElement>> GetProcessSchemeWithParametersAsync(string schemeCode, Guid? rootSchemeId, bool ignoreObsolete, string tenantId = null)
         {
             IMongoCollection<WorkflowProcessScheme> dbcoll = Store.GetCollection<WorkflowProcessScheme>(MongoDBConstants.WorkflowProcessSchemeCollectionName);
-            IEnumerable<WorkflowProcessScheme> processSchemes = ignoreObsolete
-                ? await (await dbcoll.FindAsync(
-                        pss =>
-                            pss.SchemeCode == schemeCode &&
-                            pss.RootSchemeId == rootSchemeId &&
-                            !pss.IsObsolete).ConfigureAwait(false))
-                    .ToListAsync().ConfigureAwait(false)
-                : await (await dbcoll.FindAsync(
-                        pss =>
-                            pss.SchemeCode == schemeCode &&
-                            pss.RootSchemeId == rootSchemeId).ConfigureAwait(false))
-                    .ToListAsync().ConfigureAwait(false);
+            var filters = new List<FilterDefinition<WorkflowProcessScheme>>
+            {
+                Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.SchemeCode, schemeCode),
+                GetWorkflowProcessSchemeTenantFilter(tenantId),
+                rootSchemeId.HasValue
+                    ? Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.RootSchemeId, rootSchemeId.Value)
+                    : Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.RootSchemeId, null)
+            };
 
-            return processSchemes.Any()
-                ? ConvertToSchemeDefinition(processSchemes.First())
+            if (ignoreObsolete)
+            {
+                filters.Add(Builders<WorkflowProcessScheme>.Filter.Eq(scheme => scheme.IsObsolete, false));
+            }
+
+            WorkflowProcessScheme processScheme = await (await dbcoll.FindAsync(Builders<WorkflowProcessScheme>.Filter.And(filters))
+                    .ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
+
+            return processScheme != null
+                ? ConvertToSchemeDefinition(processScheme)
                 : throw SchemeNotFoundException.Create(schemeCode, SchemeLocation.WorkflowProcessScheme);
         }
 
@@ -1611,32 +1597,45 @@ namespace OptimaJet.Workflow.MongoDB
                 Builders<WorkflowProcessScheme>.Update.Set(c => c.IsObsolete, true)).ConfigureAwait(false);
         }
 
-        public virtual async Task SetSchemeIsObsoleteAsync(string schemeCode)
+        public virtual async Task SetSchemeIsObsoleteAsync(string schemeCode, string tenantId = null)
         {
             IMongoCollection<WorkflowProcessScheme> dbcoll = Store.GetCollection<WorkflowProcessScheme>(MongoDBConstants.WorkflowProcessSchemeCollectionName);
 
-            await dbcoll.UpdateManyAsync(item => item.SchemeCode == schemeCode || item.RootSchemeCode == schemeCode,
-                Builders<WorkflowProcessScheme>.Update.Set(c => c.IsObsolete, true)).ConfigureAwait(false);
+            FilterDefinition<WorkflowProcessScheme> schemeFilter = Builders<WorkflowProcessScheme>.Filter.Or(
+                Builders<WorkflowProcessScheme>.Filter.Eq(item => item.SchemeCode, schemeCode),
+                Builders<WorkflowProcessScheme>.Filter.Eq(item => item.RootSchemeCode, schemeCode));
+
+            FilterDefinition<WorkflowProcessScheme> filter = tenantId == null
+                ? schemeFilter
+                : Builders<WorkflowProcessScheme>.Filter.And(
+                    schemeFilter,
+                    GetWorkflowProcessSchemeTenantFilter(tenantId));
+
+            await dbcoll.UpdateManyAsync(filter, Builders<WorkflowProcessScheme>.Update.Set(c => c.IsObsolete, true))
+                .ConfigureAwait(false);
         }
 
         public virtual async Task<SchemeDefinition<XElement>> SaveSchemeAsync(SchemeDefinition<XElement> scheme)
         {
             IMongoCollection<WorkflowProcessScheme> dbcoll = Store.GetCollection<WorkflowProcessScheme>(MongoDBConstants.WorkflowProcessSchemeCollectionName);
-
-            List<WorkflowProcessScheme> oldSchemes =
-                await (await dbcoll.FindAsync(
-                        wps => wps.SchemeCode == scheme.SchemeCode &&
-                               wps.IsObsolete == scheme.IsObsolete).ConfigureAwait(false))
-                    .ToListAsync().ConfigureAwait(false);
-
-            if (oldSchemes.Any())
+            var filters = new List<FilterDefinition<WorkflowProcessScheme>>
             {
-                WorkflowProcessScheme existing = oldSchemes.FirstOrDefault();
+                Builders<WorkflowProcessScheme>.Filter.Eq(wps => wps.SchemeCode, scheme.SchemeCode),
+                Builders<WorkflowProcessScheme>.Filter.Eq(wps => wps.IsObsolete, scheme.IsObsolete),
+                GetWorkflowProcessSchemeTenantFilter(scheme.TenantId),
+                scheme.RootSchemeId.HasValue
+                    ? Builders<WorkflowProcessScheme>.Filter.Eq(wps => wps.RootSchemeId, scheme.RootSchemeId.Value)
+                    : Builders<WorkflowProcessScheme>.Filter.Eq(wps => wps.RootSchemeId, null)
+            };
 
-                if (existing != null)
-                {
-                    return ConvertToSchemeDefinition(existing);
-                }
+            WorkflowProcessScheme existing = await (await dbcoll.FindAsync(Builders<WorkflowProcessScheme>.Filter.And(filters))
+                    .ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
+
+            if (existing != null)
+            {
+                return ConvertToSchemeDefinition(existing);
             }
 
             var newProcessScheme = new WorkflowProcessScheme
@@ -1648,7 +1647,8 @@ namespace OptimaJet.Workflow.MongoDB
                 RootSchemeId = scheme.RootSchemeId,
                 AllowedActivities = scheme.AllowedActivities,
                 StartingTransition = scheme.StartingTransition,
-                IsObsolete = scheme.IsObsolete
+                IsObsolete = scheme.IsObsolete,
+                TenantId = scheme.TenantId
             };
 
             await dbcoll.InsertOneAsync(newProcessScheme).ConfigureAwait(false);
@@ -1671,33 +1671,40 @@ namespace OptimaJet.Workflow.MongoDB
                 .Set(scheme => scheme.RootSchemeId, scheme.RootSchemeId)
                 .Set(scheme => scheme.AllowedActivities, scheme.AllowedActivities)
                 .Set(scheme => scheme.StartingTransition, scheme.StartingTransition)
-                .Set(scheme => scheme.IsObsolete, scheme.IsObsolete);
+                .Set(scheme => scheme.IsObsolete, scheme.IsObsolete)
+                .Set(scheme => scheme.TenantId, scheme.TenantId);
 
             await dbcoll.UpdateOneAsync(filter, update, new UpdateOptions() { IsUpsert = true }).ConfigureAwait(false);
         }
 
-        public virtual async Task SaveSchemeAsync(string schemaCode, bool canBeInlined, List<string> inlinedSchemes, string scheme, List<string> tags)
+        public virtual async Task SaveSchemeAsync(string schemaCode, bool canBeInlined, List<string> inlinedSchemes, string scheme, List<string> tags, string tenantId = null)
         {
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
-            
-            var filter = Builders<WorkflowScheme>.Filter
-                .Eq(scheme => scheme.Code, schemaCode);
 
-            var update = Builders<WorkflowScheme>.Update
-                .Set(scheme => scheme.Id, schemaCode)
-                .Set(scheme => scheme.Code, schemaCode)
-                .Set(scheme => scheme.Scheme, scheme)
-                .Set(scheme => scheme.CanBeInlined, canBeInlined)
-                .Set(scheme => scheme.InlinedSchemes, inlinedSchemes)
-                .Set(scheme => scheme.Tags, tags);
+            FilterDefinition<WorkflowScheme> filter = GetWorkflowSchemeExactFilter(schemaCode, tenantId);
+            WorkflowScheme existing = await (await dbcoll.FindAsync(filter).ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
 
-            await dbcoll.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true }).ConfigureAwait(false);
+            var workflowScheme = new WorkflowScheme
+            {
+                Id = existing?.Id ?? Guid.NewGuid().ToString("N"),
+                Code = schemaCode,
+                Scheme = scheme,
+                CanBeInlined = canBeInlined,
+                InlinedSchemes = inlinedSchemes,
+                Tags = tags,
+                TenantId = tenantId
+            };
+
+            await dbcoll.ReplaceOneAsync(filter, workflowScheme, new ReplaceOptions { IsUpsert = true })
+                .ConfigureAwait(false);
         }
 
-        public virtual async Task<XElement> GetSchemeAsync(string code)
+        public virtual async Task<XElement> GetSchemeAsync(string code, string tenantId = null)
         {
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
-            WorkflowScheme scheme = await (await dbcoll.FindAsync(c => c.Code == code).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
+            WorkflowScheme scheme = await GetWorkflowSchemeAsync(dbcoll, code, tenantId).ConfigureAwait(false);
 
             if (scheme == null || String.IsNullOrEmpty(scheme.Scheme))
             {
@@ -1707,28 +1714,52 @@ namespace OptimaJet.Workflow.MongoDB
             return XElement.Parse(scheme.Scheme);
         }
 
-        public virtual async Task<List<string>> GetInlinedSchemeCodesAsync()
+        public virtual async Task<List<string>> GetInlinedSchemeCodesAsync(string tenantId = null)
         {
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
-            FilterDefinition<WorkflowScheme> filter = Builders<WorkflowScheme>.Filter.Eq(n => n.CanBeInlined, true);
+            FilterDefinitionBuilder<WorkflowScheme> filterBuilder = Builders<WorkflowScheme>.Filter;
+            FilterDefinition<WorkflowScheme> filter = filterBuilder.Eq(n => n.CanBeInlined, true);
+
+            if (tenantId == null)
+            {
+                filter = filterBuilder.And(filter, filterBuilder.Eq(scheme => scheme.TenantId, null));
+            }
+            else
+            {
+                filter = filterBuilder.And(
+                    filter,
+                    filterBuilder.Or(
+                        filterBuilder.Eq(scheme => scheme.TenantId, tenantId),
+                        filterBuilder.Eq(scheme => scheme.TenantId, null)));
+            }
+
             ProjectionDefinition<WorkflowScheme> projection = Builders<WorkflowScheme>.Projection
                 .Include(b => b.Code)
                 .Exclude("_id");
             var options = new FindOptions<WorkflowScheme, BsonDocument> {Projection = projection};
             var codes = (await (await dbcoll.FindAsync(filter, options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false)).Select(d => d.GetValue(nameof(WorkflowScheme.Code)).AsString)
+                .Distinct()
                 .ToList();
             return codes;
         }
 
-        public virtual async Task<List<string>> GetRelatedByInliningSchemeCodesAsync(string schemeCode)
+        public virtual async Task<List<string>> GetRelatedByInliningSchemeCodesAsync(string schemeCode, string tenantId = null)
         {
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
             FilterDefinition<WorkflowScheme> filter = Builders<WorkflowScheme>.Filter.AnyEq(sch => sch.InlinedSchemes, schemeCode);
+            if (tenantId != null)
+            {
+                filter = Builders<WorkflowScheme>.Filter.And(
+                    filter,
+                    Builders<WorkflowScheme>.Filter.Eq(sch => sch.TenantId, tenantId));
+            }
+
             ProjectionDefinition<WorkflowScheme> projection = Builders<WorkflowScheme>.Projection
                 .Include(b => b.Code)
                 .Exclude("_id");
             var options = new FindOptions<WorkflowScheme, BsonDocument> {Projection = projection};
             var codes = (await (await dbcoll.FindAsync(filter, options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false)).Select(d => d.GetValue(nameof(WorkflowScheme.Code)).AsString)
+                .Distinct()
                 .ToList();
             return codes;
         }
@@ -1740,12 +1771,20 @@ namespace OptimaJet.Workflow.MongoDB
 
         public virtual async Task<List<string>> SearchSchemesByTagsAsync(IEnumerable<string> tags)
         {
+            return await SearchSchemesByTagsAsync(null, tags).ConfigureAwait(false);
+        }
+
+        public virtual async Task<List<string>> SearchSchemesByTagsAsync(string tenantId, IEnumerable<string> tags)
+        {
             var tagsList = tags?.ToList();
             bool isEmpty = tagsList == null || !tagsList.Any();
             
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
 
-            var filters = new List<FilterDefinition<WorkflowScheme>>();
+            FilterDefinitionBuilder<WorkflowScheme> filterBuilder = Builders<WorkflowScheme>.Filter;
+            FilterDefinition<WorkflowScheme> tenantFilter = tenantId == null
+                ? filterBuilder.Eq(scheme => scheme.TenantId, null)
+                : filterBuilder.Eq(scheme => scheme.TenantId, tenantId);
 
             ProjectionDefinition<WorkflowScheme> projection = Builders<WorkflowScheme>.Projection
                 .Include(b => b.Code)
@@ -1755,17 +1794,25 @@ namespace OptimaJet.Workflow.MongoDB
 
             if (!isEmpty)
             {
+                var tagFilters = new List<FilterDefinition<WorkflowScheme>>();
                 foreach (string tag in tagsList)
                 {
-                    filters.Add(Builders<WorkflowScheme>.Filter.AnyEq(s => s.Tags, tag));
+                    tagFilters.Add(filterBuilder.AnyEq(s => s.Tags, tag));
                 }
 
-                return (await (await dbcoll.FindAsync(Builders<WorkflowScheme>.Filter.Or(filters), options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false))
+                FilterDefinition<WorkflowScheme> filter = filterBuilder.And(tenantFilter, filterBuilder.Or(tagFilters));
+
+                return (await (await dbcoll.FindAsync(filter, options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false))
                     .Select(d => d.GetValue(nameof(WorkflowScheme.Code)).AsString).ToList();
             }
 
-            return (await (await dbcoll.FindAsync(Builders<WorkflowScheme>.Filter.Empty, options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false))
+            return (await (await dbcoll.FindAsync(tenantFilter, options).ConfigureAwait(false)).ToListAsync().ConfigureAwait(false))
                 .Select(d => d.GetValue(nameof(WorkflowScheme.Code)).AsString).ToList();
+        }
+
+        public virtual async Task<List<string>> SearchSchemesByTagsInTenantAsync(string tenantId, params string[] tags)
+        {
+            return await SearchSchemesByTagsAsync(tenantId, tags?.AsEnumerable()).ConfigureAwait(false);
         }
 
         public virtual async Task AddSchemeTagsAsync(string schemeCode, params string[] tags)
@@ -1775,7 +1822,17 @@ namespace OptimaJet.Workflow.MongoDB
 
         public virtual async Task AddSchemeTagsAsync(string schemeCode, IEnumerable<string> tags)
         {
-            await UpdateSchemeTagsAsync(schemeCode, (schemeTags) => tags.Concat(schemeTags).ToList()).ConfigureAwait(false);
+            await AddSchemeTagsAsync(schemeCode, null, tags).ConfigureAwait(false);
+        }
+
+        public virtual async Task AddSchemeTagsAsync(string schemeCode, string tenantId, IEnumerable<string> tags)
+        {
+            await UpdateSchemeTagsAsync(schemeCode, tenantId, schemeTags => tags.Concat(schemeTags).ToList()).ConfigureAwait(false);
+        }
+
+        public virtual async Task AddSchemeTagsInTenantAsync(string schemeCode, string tenantId, params string[] tags)
+        {
+            await AddSchemeTagsAsync(schemeCode, tenantId, tags?.AsEnumerable()).ConfigureAwait(false);
         }
 
         public virtual async Task RemoveSchemeTagsAsync(string schemeCode, params string[] tags)
@@ -1785,7 +1842,17 @@ namespace OptimaJet.Workflow.MongoDB
 
         public virtual async Task RemoveSchemeTagsAsync(string schemeCode, IEnumerable<string> tags)
         {
-            await UpdateSchemeTagsAsync(schemeCode,schemeTags => schemeTags.Where(t => !tags.Contains(t)).ToList()).ConfigureAwait(false);
+            await RemoveSchemeTagsAsync(schemeCode, null, tags).ConfigureAwait(false);
+        }
+
+        public virtual async Task RemoveSchemeTagsAsync(string schemeCode, string tenantId, IEnumerable<string> tags)
+        {
+            await UpdateSchemeTagsAsync(schemeCode, tenantId, schemeTags => schemeTags.Where(t => !tags.Contains(t)).ToList()).ConfigureAwait(false);
+        }
+
+        public virtual async Task RemoveSchemeTagsInTenantAsync(string schemeCode, string tenantId, params string[] tags)
+        {
+            await RemoveSchemeTagsAsync(schemeCode, tenantId, tags?.AsEnumerable()).ConfigureAwait(false);
         }
 
         public virtual async Task SetSchemeTagsAsync(string schemeCode, params string[] tags)
@@ -1795,13 +1862,25 @@ namespace OptimaJet.Workflow.MongoDB
 
         public virtual async Task SetSchemeTagsAsync(string schemeCode, IEnumerable<string> tags)
         {
-            await UpdateSchemeTagsAsync(schemeCode, (schemeTags) => tags.ToList()).ConfigureAwait(false);
+            await SetSchemeTagsAsync(schemeCode, null, tags).ConfigureAwait(false);
         }
 
-        private async Task UpdateSchemeTagsAsync(string schemeCode, Func<List<string>, List<string>> getNewTags)
+        public virtual async Task SetSchemeTagsAsync(string schemeCode, string tenantId, IEnumerable<string> tags)
+        {
+            await UpdateSchemeTagsAsync(schemeCode, tenantId, schemeTags => tags.ToList()).ConfigureAwait(false);
+        }
+
+        public virtual async Task SetSchemeTagsInTenantAsync(string schemeCode, string tenantId, params string[] tags)
+        {
+            await SetSchemeTagsAsync(schemeCode, tenantId, tags?.AsEnumerable()).ConfigureAwait(false);
+        }
+
+        private async Task UpdateSchemeTagsAsync(string schemeCode, string tenantId, Func<List<string>, List<string>> getNewTags)
         {
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
-            WorkflowScheme scheme = await (await dbcoll.FindAsync(c => c.Code == schemeCode).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
+            WorkflowScheme scheme = await (await dbcoll.FindAsync(GetWorkflowSchemeExactFilter(schemeCode, tenantId)).ConfigureAwait(false))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
 
             if (scheme == null)
             {
@@ -1822,13 +1901,13 @@ namespace OptimaJet.Workflow.MongoDB
 
         private readonly IDictionary<string, string> _templateTypeMapping = new Dictionary<string, string>();
 
-        public virtual async Task<XElement> GenerateAsync(string schemeCode)
+        public virtual async Task<XElement> GenerateAsync(string schemeCode, string tenantId = null)
         {
             string code = !_templateTypeMapping.ContainsKey(schemeCode.ToLower()) ? schemeCode : _templateTypeMapping[schemeCode.ToLower()];
 
             IMongoCollection<WorkflowScheme> dbcoll = Store.GetCollection<WorkflowScheme>(MongoDBConstants.WorkflowSchemeCollectionName);
 
-            WorkflowScheme scheme = await (await dbcoll.FindAsync(c => c.Code == code).ConfigureAwait(false)).FirstOrDefaultAsync().ConfigureAwait(false);
+            WorkflowScheme scheme = await GetWorkflowSchemeAsync(dbcoll, code, tenantId).ConfigureAwait(false);
 
 
             if (scheme == null)
@@ -2150,99 +2229,119 @@ namespace OptimaJet.Workflow.MongoDB
         
         #region IFormDataProvider
 
-        public async Task<WorkflowForm> GetFormAsync(string name, int? version = null)
+        public async Task<WorkflowForm> GetFormAsync(string name, int? version = null, string tenantId = null)
         {
             var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
-            var filter = Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name);
-
-            if (version.HasValue)
-            {
-                filter = Builders<Models.WorkflowForm>.Filter.And(
-                    filter,
-                    Builders<Models.WorkflowForm>.Filter.Eq(f => f.Version, version.Value)
-                );
-            }
-
-            Models.WorkflowForm entity = await formCollection
-                .Find(filter)
-                .SortByDescending(f => f.Version)
-                .FirstOrDefaultAsync()
-                .ConfigureAwait(false);
-
+            Models.WorkflowForm entity = await GetPreferredFormAsync(formCollection, name, version, tenantId).ConfigureAwait(false);
             return entity?.ToModel();
         }
 
-        public async Task<List<string>> GetFormNamesAsync()
+        public async Task<List<string>> GetFormNamesAsync(string tenantId = null)
         {
             var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
-            return await formCollection.Distinct<string>(nameof(WorkflowFormEntity.Name), FilterDefinition<Models.WorkflowForm>.Empty)
-                .ToListAsync().ConfigureAwait(false);
-        }
-
-        public async Task<List<int>> GetFormVersionsAsync(string name)
-        {
-            var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
-            var filter = Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name);
-            return await formCollection.Distinct<int>(nameof(WorkflowFormEntity.Version), filter).ToListAsync().ConfigureAwait(false);
-        }
-
-        public async Task<WorkflowForm> CreateNewFormVersionAsync(string name, string defaultDefinition, int? version = null)
-        {
-            var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
-
-            DateTime now = _runtime.RuntimeDateTimeNow;
-
-            Models.WorkflowForm latest = await formCollection
-                .Find(x => x.Name == name)
-                .SortByDescending(x => x.Version)
-                .FirstOrDefaultAsync()
+            return await GetScopedDistinctValuesAsync<string>(formCollection, tenantId, nameof(WorkflowFormEntity.Name))
                 .ConfigureAwait(false);
+        }
 
-            int newVersion = latest != null ? latest.Version + 1 : 0;
+        public async Task<List<int>> GetFormVersionsAsync(string name, string tenantId = null)
+        {
+            var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
+            var filter = Builders<Models.WorkflowForm>.Filter.And(
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
+                GetAccessibleTenantFilter(tenantId));
 
-            string definition;
+            List<Models.WorkflowForm> forms = await formCollection.Find(filter).ToListAsync().ConfigureAwait(false);
+            IEnumerable<Models.WorkflowForm> scopedForms = tenantId is not null && forms.Any(f => f.TenantId == tenantId)
+                ? forms.Where(f => f.TenantId == tenantId)
+                : forms.Where(f => f.TenantId == null);
 
-            if (version == null)
+            return scopedForms.Select(f => f.Version).Distinct().ToList();
+        }
+
+        public async Task<WorkflowForm> CreateNewFormVersionAsync(string name, string defaultDefinition, int? version = null,
+            string tenantId = null)
+        {
+            var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
+
+            for (int attempt = 0; attempt < CreateNewFormVersionMaxAttempts; attempt++)
             {
-                definition = latest?.Definition ?? defaultDefinition;
-            }
-            else
-            {
-                Models.WorkflowForm existing = await formCollection
-                    .Find(x => x.Name == name && x.Version == version.Value)
-                    .FirstOrDefaultAsync()
+                DateTime now = _runtime.RuntimeDateTimeNow;
+                Models.WorkflowForm latestInTenantScope = await GetExactScopeLatestFormAsync(formCollection, name, tenantId)
                     .ConfigureAwait(false);
+                int newVersion = latestInTenantScope != null ? latestInTenantScope.Version + 1 : 0;
 
-                if (existing == null)
+                Models.WorkflowForm sourceForm = version is null
+                    ? latestInTenantScope
+                    : await GetExactScopeFormAsync(formCollection, name, version, tenantId).ConfigureAwait(false);
+
+                if (sourceForm is null && tenantId is not null && latestInTenantScope is null)
+                {
+                    sourceForm = version is null
+                        ? await GetExactScopeLatestFormAsync(formCollection, name, tenantId: null).ConfigureAwait(false)
+                        : await GetExactScopeFormAsync(formCollection, name, version, tenantId: null).ConfigureAwait(false);
+                }
+
+                if (version is not null && sourceForm is null)
                 {
                     throw new InvalidOperationException("The form with the specified name and version was not found.");
                 }
 
-                definition = existing.Definition;
+                string definition = sourceForm?.Definition ?? defaultDefinition;
+
+                var entity = new Models.WorkflowForm
+                {
+                    Id = Guid.NewGuid(),
+                    Name = name,
+                    Version = newVersion,
+                    CreationDate = now,
+                    UpdatedDate = now,
+                    Definition = definition,
+                    Lock = 0,
+                    TenantId = tenantId
+                };
+
+                try
+                {
+                    await formCollection.InsertOneAsync(entity).ConfigureAwait(false);
+                    return entity.ToModel();
+                }
+                catch (MongoWriteException ex) when (ex.IsDuplicateKeyException())
+                {
+                    if (attempt == CreateNewFormVersionMaxAttempts - 1)
+                    {
+                        throw;
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(CreateNewFormVersionRetryDelayMilliseconds * (attempt + 1)))
+                        .ConfigureAwait(false);
+                }
             }
 
-            var entity = new Models.WorkflowForm
-            {
-                Id = Guid.NewGuid(),
-                Name = name,
-                Version = newVersion,
-                CreationDate = now,
-                UpdatedDate = now,
-                Definition = definition,
-                Lock = 0
-            };
-
-            await formCollection.InsertOneAsync(entity).ConfigureAwait(false);
-
-            return entity.ToModel();
+            throw new Exception("Unable to create a new form version.");
         }
 
-        public async Task<WorkflowForm> CreateNewFormIfNotExistsAsync(string name, string defaultDefinition)
+        public async Task<WorkflowForm> CreateNewFormIfNotExistsAsync(string name, string defaultDefinition, string tenantId = null)
         {
             IMongoCollection<Models.WorkflowForm> formCollection =
                 Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
 
-            FilterDefinition<Models.WorkflowForm> filter = Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name);
+            Models.WorkflowForm existing = await GetExactScopeFormAsync(formCollection, name, version: null, tenantId).ConfigureAwait(false);
+            if (existing != null)
+            {
+                return existing.ToModel();
+            }
+
+            string definition = defaultDefinition;
+            if (tenantId is not null)
+            {
+                Models.WorkflowForm sharedForm = await GetExactScopeFormAsync(formCollection, name, version: null, tenantId: null)
+                    .ConfigureAwait(false);
+                definition = sharedForm?.Definition ?? defaultDefinition;
+            }
+
+            FilterDefinition<Models.WorkflowForm> filter = Builders<Models.WorkflowForm>.Filter.And(
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
+                GetExactTenantFilter(tenantId));
 
             DateTime now = _runtime.RuntimeDateTimeNow;
 
@@ -2252,12 +2351,27 @@ namespace OptimaJet.Workflow.MongoDB
                 .SetOnInsert(f => f.Version, 0)
                 .SetOnInsert(f => f.CreationDate, now)
                 .SetOnInsert(f => f.UpdatedDate, now)
-                .SetOnInsert(f => f.Definition, defaultDefinition)
-                .SetOnInsert(f => f.Lock, 0);
+                .SetOnInsert(f => f.Definition, definition)
+                .SetOnInsert(f => f.Lock, 0)
+                .SetOnInsert(f => f.TenantId, tenantId);
 
             var options = new UpdateOptions { IsUpsert = true };
 
-            await formCollection.UpdateOneAsync(filter, update, options).ConfigureAwait(false);
+            try
+            {
+                await formCollection.UpdateOneAsync(filter, update, options).ConfigureAwait(false);
+            }
+            catch (MongoWriteException ex) when (ex.IsDuplicateKeyException())
+            {
+                Models.WorkflowForm existingAfterDuplicate =
+                    await GetExactScopeFormAsync(formCollection, name, version: null, tenantId).ConfigureAwait(false);
+                if (existingAfterDuplicate != null)
+                {
+                    return existingAfterDuplicate.ToModel();
+                }
+
+                throw;
+            }
 
             Models.WorkflowForm resultForm = await formCollection.Find(filter)
                 .SortByDescending(f => f.Version)
@@ -2272,19 +2386,21 @@ namespace OptimaJet.Workflow.MongoDB
             return resultForm.ToModel();
         }
 
-        public async Task<int> UpdateFormAsync(string name, int version, int lockValue, string definition)
+        public async Task<int> UpdateFormAsync(string name, int version, int lockValue, string definition, string tenantId = null)
         {
             var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
             var filter = Builders<Models.WorkflowForm>.Filter.And(
                 Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
                 Builders<Models.WorkflowForm>.Filter.Eq(f => f.Version, version),
-                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Lock, lockValue)
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Lock, lockValue),
+                GetExactTenantFilter(tenantId)
             );
 
             var newLockValue = lockValue == int.MaxValue ? 0 : lockValue + 1;
+            DateTime now = _runtime.RuntimeDateTimeNow;
             var update = Builders<Models.WorkflowForm>.Update
                 .Set(f => f.Definition, definition)
-                .Set(f => f.UpdatedDate, _runtime.RuntimeDateTimeNow)
+                .Set(f => f.UpdatedDate, now)
                 .Set(f => f.Lock, newLockValue);
 
             var result = await formCollection.UpdateOneAsync(filter, update).ConfigureAwait(false);
@@ -2298,25 +2414,108 @@ namespace OptimaJet.Workflow.MongoDB
             return newLockValue;
         }
 
-        public async Task DeleteFormVersionAsync(string name, int version)
+        public async Task DeleteFormVersionAsync(string name, int version, string tenantId = null)
         {
             var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
             var filter = Builders<Models.WorkflowForm>.Filter.And(
                 Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
-                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Version, version)
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Version, version),
+                GetExactTenantFilter(tenantId)
             );
 
             await formCollection.DeleteOneAsync(filter).ConfigureAwait(false);
         }
 
-        public async Task DeleteFormAsync(string name)
+        public async Task DeleteFormAsync(string name, string tenantId = null)
         {
             var formCollection = Store.GetCollection<Models.WorkflowForm>(MongoDBConstants.WorkflowFormCollectionName);
-            var filter = Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name);
+            var filter = Builders<Models.WorkflowForm>.Filter.And(
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
+                GetExactTenantFilter(tenantId));
             await formCollection.DeleteManyAsync(filter).ConfigureAwait(false);
         }
         
         #endregion
+
+        private static async Task<Models.WorkflowForm> GetPreferredFormAsync(IMongoCollection<Models.WorkflowForm> formCollection,
+            string name, int? version, string tenantId)
+        {
+            FilterDefinition<Models.WorkflowForm> filter = Builders<Models.WorkflowForm>.Filter.And(
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
+                GetAccessibleTenantFilter(tenantId));
+
+            List<Models.WorkflowForm> forms = await formCollection.Find(filter).ToListAsync().ConfigureAwait(false);
+            IEnumerable<Models.WorkflowForm> scopedForms = forms;
+
+            if (tenantId is not null)
+            {
+                scopedForms = forms.Any(f => f.TenantId == tenantId)
+                    ? forms.Where(f => f.TenantId == tenantId)
+                    : forms.Where(f => f.TenantId == null);
+            }
+
+            if (version.HasValue)
+            {
+                return scopedForms.FirstOrDefault(f => f.Version == version.Value);
+            }
+
+            return scopedForms
+                .OrderByDescending(f => f.Version)
+                .FirstOrDefault();
+        }
+
+        private static async Task<Models.WorkflowForm> GetExactScopeFormAsync(IMongoCollection<Models.WorkflowForm> formCollection,
+            string name, int? version, string tenantId)
+        {
+            var filter = Builders<Models.WorkflowForm>.Filter.And(
+                Builders<Models.WorkflowForm>.Filter.Eq(f => f.Name, name),
+                GetExactTenantFilter(tenantId));
+
+            if (version.HasValue)
+            {
+                filter = Builders<Models.WorkflowForm>.Filter.And(filter,
+                    Builders<Models.WorkflowForm>.Filter.Eq(f => f.Version, version.Value));
+            }
+
+            return version.HasValue
+                ? await formCollection.Find(filter).FirstOrDefaultAsync().ConfigureAwait(false)
+                : await formCollection.Find(filter).SortByDescending(f => f.Version).FirstOrDefaultAsync().ConfigureAwait(false);
+        }
+
+        private static Task<Models.WorkflowForm> GetExactScopeLatestFormAsync(IMongoCollection<Models.WorkflowForm> formCollection,
+            string name, string tenantId)
+        {
+            return GetExactScopeFormAsync(formCollection, name, version: null, tenantId);
+        }
+
+        private static FilterDefinition<Models.WorkflowForm> GetExactTenantFilter(string tenantId)
+        {
+            return tenantId is null
+                ? Builders<Models.WorkflowForm>.Filter.Eq(f => f.TenantId, null)
+                : Builders<Models.WorkflowForm>.Filter.Eq(f => f.TenantId, tenantId);
+        }
+
+        private static FilterDefinition<Models.WorkflowForm> GetAccessibleTenantFilter(string tenantId)
+        {
+            return tenantId is null
+                ? Builders<Models.WorkflowForm>.Filter.Eq(f => f.TenantId, null)
+                : Builders<Models.WorkflowForm>.Filter.Or(
+                    Builders<Models.WorkflowForm>.Filter.Eq(f => f.TenantId, tenantId),
+                    Builders<Models.WorkflowForm>.Filter.Eq(f => f.TenantId, null));
+        }
+
+        private static async Task<List<TValue>> GetScopedDistinctValuesAsync<TValue>(
+            IMongoCollection<Models.WorkflowForm> formCollection, string tenantId, string fieldName,
+            FilterDefinition<Models.WorkflowForm> baseFilter = null)
+        {
+            baseFilter ??= FilterDefinition<Models.WorkflowForm>.Empty;
+
+            return await formCollection
+                .Distinct<TValue>(fieldName,
+                    Builders<Models.WorkflowForm>.Filter.And(baseFilter, GetAccessibleTenantFilter(tenantId)))
+                .ToListAsync()
+                .ConfigureAwait(false);
+        }
 
         private void CheckInitialData()
         {

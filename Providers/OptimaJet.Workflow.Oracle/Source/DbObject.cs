@@ -57,7 +57,7 @@ namespace OptimaJet.Workflow.Oracle
             return await ExecuteCommandNonQueryAsync(connection, command, transaction, parameters).ConfigureAwait(false);
         }
         
-        public async Task<int> UpsertAsync(OracleConnection connection, TEntity entity, OracleTransaction transaction = null)
+        public virtual async Task<int> UpsertAsync(OracleConnection connection, TEntity entity, OracleTransaction transaction = null)
         {
             string command =
                 "BEGIN LOOP BEGIN " +

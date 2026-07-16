@@ -22,6 +22,7 @@ namespace OptimaJet.Workflow.PostgreSQL
             {
                 new ColumnInfo {Name = nameof(InboxEntity.Id), IsKey = true, Type = NpgsqlDbType.Uuid},
                 new ColumnInfo {Name = nameof(InboxEntity.ProcessId), Type = NpgsqlDbType.Uuid},
+                new ColumnInfo {Name = nameof(InboxEntity.TenantId)},
                 new ColumnInfo {Name = nameof(InboxEntity.IdentityId)},
                 new ColumnInfo {Name = nameof(InboxEntity.AddingDate), Type = NpgsqlDbType.Timestamp},
                 new ColumnInfo {Name = nameof(InboxEntity.AvailableCommands)}
@@ -34,6 +35,7 @@ namespace OptimaJet.Workflow.PostgreSQL
             {
                 Id = inboxItem.Id,
                 ProcessId = inboxItem.ProcessId,
+                TenantId = inboxItem.TenantId,
                 IdentityId = inboxItem.IdentityId,
                 AddingDate = inboxItem.AddingDate,
                 AvailableCommands = HelperParser.Join(",", inboxItem.AvailableCommands?.Select(x => x.Name))
@@ -53,7 +55,7 @@ namespace OptimaJet.Workflow.PostgreSQL
                 {
                     processInstance = await runtime.Builder.GetProcessInstanceAsync(group.Key).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     processInstance = null;
                 }
@@ -66,6 +68,7 @@ namespace OptimaJet.Workflow.PostgreSQL
                     {
                         Id = inboxItem.Id,
                         ProcessId = inboxItem.ProcessId,
+                        TenantId = inboxItem.TenantId,
                         IdentityId = inboxItem.IdentityId,
                         AddingDate = inboxItem.AddingDate,
                         AvailableCommands = availableCommands.Select(x =>
